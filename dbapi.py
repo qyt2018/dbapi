@@ -34,8 +34,17 @@ def get_ds_mysql(ip,port,service ,user,password):
                            charset='utf8',cursorclass = pymysql.cursors.DictCursor)
     return conn
 
+def get_ds_mysql2(ip,port,service ,user,password):
+    conn = pymysql.connect(host=ip, port=int(port), user=user, passwd=password, db=service,
+                           charset='utf8')
+    return conn
+
+
 def get_db_mysql(config):
     return get_ds_mysql(config['db_ip'],config['db_port'],config['db_service'],config['db_user'],config['db_pass'])
+
+def get_db_mysql2(config):
+    return get_ds_mysql2(config['db_ip'],config['db_port'],config['db_service'],config['db_user'],config['db_pass'])
 
 def aes_decrypt(db,p_password,p_key):
     cr = db.cursor()
@@ -45,10 +54,9 @@ def aes_decrypt(db,p_password,p_key):
     db.commit()
     cr.close()
     db.close()
-    #print(rs['password'])
     print('aes_decrypt=',str(rs['password'],encoding = "utf-8"))
-    #return rs['password']
     return str(rs['password'],encoding = "utf-8")
+
 
 def write_log(msg):
     file_name   = '/tmp/dbapi_{0}.log'.format(options.port)
@@ -75,6 +83,16 @@ def db_config():
     config['db_pass']    = 'Puppet@123'
     config['db_service'] = 'puppet'
     config['db_mysql']   =  get_db_mysql(config)
+    return config
+
+def db_config2():
+    config={}
+    config['db_ip']      = '10.2.39.18'
+    config['db_port']    = '3306'
+    config['db_user']    = 'puppet'
+    config['db_pass']    = 'Puppet@123'
+    config['db_service'] = 'puppet'
+    config['db_mysql']   =  get_db_mysql2(config)
     return config
 
 def update_backup_status(p_tag):
@@ -198,7 +216,11 @@ def get_db_sync_config(p_tag):
        result['msg'] = '同步任务已禁用!'
        return result
 
-    cr.execute('''SELECT  a.sync_tag,a.sync_ywlx,
+    cr.execute('''SELECT  a.sync_tag,
+                          a.sync_ywlx,
+                          (select dmmc from t_dmmx where dm='08' and dmm=a.sync_ywlx) as sync_ywlx_name,
+                          a.sync_type,
+                          (select dmmc from t_dmmx where dm='09' and dmm=a.sync_type) as sync_type_name,
                           CASE WHEN c.service='' THEN 
                             CONCAT(c.ip,':',c.port,':',a.sync_schema,':',c.user,':',c.password)
                           ELSE
@@ -209,16 +231,75 @@ def get_db_sync_config(p_tag):
                           ELSE
                             CONCAT(d.ip,':',d.port,':',d.service,':',d.user,':',d.password)
                           END AS sync_db_dest,                          
-                          a.server_id,a.run_time,a.api_server,
+                          a.server_id,
+                          b.server_desc,
+                          a.run_time,
+                          a.api_server,
                           LOWER(a.sync_table) AS sync_table,a.batch_size,a.batch_size_incr,a.sync_gap,a.sync_col_name,
                           a.sync_col_val,a.sync_time_type,a.script_path,a.script_file,a.comments,a.python3_home,
-                          a.status,b.server_ip,b.server_port,b.server_user,b.server_pass
+                          a.status,b.server_ip,b.server_port,b.server_user,b.server_pass                         
                 FROM t_db_sync_config a,t_server b,t_db_source c,t_db_source d
                 WHERE a.server_id=b.id 
                   AND a.sour_db_id=c.id
                   AND a.desc_db_id=d.id
                   AND a.sync_tag ='{0}' 
                   ORDER BY a.id,a.sync_ywlx
+               '''.format(p_tag))
+    rs=cr.fetchone()
+    cr.close()
+    result['msg']=rs
+    return result
+
+def get_datax_sync_config(p_tag):
+    config=db_config()
+    db=config['db_mysql']
+    cr=db.cursor()
+    result = {}
+    result['code'] = 200
+    result['msg'] = ''
+
+    #检测同步服务器是否有效
+    if check_datax_server_sync_status(p_tag)>0:
+       result['code'] = -1
+       result['msg'] = '同步服务器已禁用!'
+       return result
+
+    #检测同步标识是否存在
+    if check_datax_sync_config(p_tag)==0:
+       result['code'] = -1
+       result['msg'] = '同步标识不存在!'
+       return result
+
+    #任务已禁用
+    if check_datax_sync_task_status(p_tag) > 0:
+       result['code'] = -1
+       result['msg'] = '同步任务已禁用!'
+       return result
+
+    cr.execute('''SELECT  a.id,
+                          a.sync_tag,
+                          a.sync_ywlx,
+                          CASE WHEN c.service='' THEN 
+                            CONCAT(c.ip,':',c.port,':',a.sync_schema,':',c.user,':',c.password)
+                          ELSE
+                            CONCAT(c.ip,':',c.port,':',c.service,':',c.user,':',c.password)
+                          END AS sync_db_sour,                          
+                          a.zk_hosts,
+                          a.python3_home,                
+                          a.server_id,a.run_time,a.api_server,
+                          LOWER(a.sync_table) AS sync_table,a.sync_gap,
+                          a.sync_time_type,a.script_path,a.comments,
+                          a.status,
+                          b.server_ip,b.server_port,b.server_user,b.server_pass,
+                          a.hbase_thrift,
+                          a.sync_hbase_table,
+                          a.datax_home,
+                          a.sync_incr_col
+                    FROM t_datax_sync_config a,t_server b,t_db_source c
+                    WHERE a.server_id=b.id 
+                      AND a.sour_db_id=c.id
+                      AND a.sync_tag ='{0}' 
+                      ORDER BY a.id,a.sync_ywlx
                '''.format(p_tag))
     rs=cr.fetchone()
     cr.close()
@@ -245,7 +326,30 @@ def check_db_sync_config(p_tag):
     cr.close()
     return  rs['count(0)']
 
+
+def check_datax_sync_config(p_tag):
+    config=db_config()
+    db=config['db_mysql']
+    cr=db.cursor()
+    cr.execute('''select count(0) from t_datax_sync_config where sync_tag='{0}'
+               '''.format(p_tag))
+    rs=cr.fetchone()
+    cr.close()
+    return  rs['count(0)']
+
+
 def check_server_sync_status(p_tag):
+    config=db_config()
+    db=config['db_mysql']
+    cr=db.cursor()
+    cr.execute('''select count(0) from t_db_sync_config a,t_server b 
+                  where a.server_id=b.id and a.sync_tag='{0}' and b.status='0'
+               '''.format(p_tag))
+    rs=cr.fetchone()
+    cr.close()
+    return  rs['count(0)']
+
+def check_datax_server_sync_status(p_tag):
     config=db_config()
     db=config['db_mysql']
     cr=db.cursor()
@@ -261,6 +365,18 @@ def check_sync_task_status(p_tag):
     db=config['db_mysql']
     cr=db.cursor()
     cr.execute('''select count(0) from t_db_sync_config a,t_server b 
+                  where a.server_id=b.id and a.sync_tag='{0}' and a.status='0'
+               '''.format(p_tag))
+    rs=cr.fetchone()
+    cr.close()
+    return  rs['count(0)']
+
+
+def check_datax_sync_task_status(p_tag):
+    config=db_config()
+    db=config['db_mysql']
+    cr=db.cursor()
+    cr.execute('''select count(0) from t_datax_sync_config a,t_server b 
                   where a.server_id=b.id and a.sync_tag='{0}' and a.status='0'
                '''.format(p_tag))
     rs=cr.fetchone()
@@ -574,6 +690,49 @@ def write_remote_crontab_sync(v_tag):
     ssh.close()
     return result
 
+def write_datax_remote_crontab_sync(v_tag):
+    result = get_datax_sync_config(v_tag)
+    if result['code']!=200:
+       return result
+
+    v_cmd   = '{0}/datax_sync.sh {1} {2}'.format(result['msg']['script_path'],'datax_sync.py', v_tag)
+
+    v_cron  = '''
+                crontab -l > /tmp/conf && sed -i "/{0}/d" /tmp/conf && echo  -e "\n#{1} tag={2}\n{3} {4} &>/dev/null &" >> /tmp/conf
+              '''.format(v_tag,result['msg']['comments'],v_tag,result['msg']['run_time'],v_cmd)
+
+    v_cron_ = '''
+                crontab -l > /tmp/conf && sed -i "/{0}/d" /tmp/conf && echo  -e "\n#{1} tag={2}\n#{3} {4} &>/dev/null &" >> /tmp/conf
+              '''.format(v_tag, result['msg']['comments'], v_tag, result['msg']['run_time'], v_cmd)
+
+
+    v_cron2 ='''sed -i '/^$/{N;/\\n$/D};' /tmp/conf'''
+    v_cron3 ='''crontab /tmp/conf'''
+
+    # Decryption password
+    config = db_config()
+    print('config[db_mysql=', config['db_mysql'])
+    print(result['msg']['server_pass'], result['msg']['server_user'])
+    v_password = aes_decrypt(config['db_mysql'], result['msg']['server_pass'], result['msg']['server_user'])
+    print('write_remote_crontab_sync ->v_password=', v_password)
+
+    #connect server
+    ssh = paramiko.SSHClient()
+    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    ssh.connect(hostname=result['msg']['server_ip'], port=int(result['msg']['server_port']),
+                username=result['msg']['server_user'], password=v_password)
+    #exec v_cron
+    if result['msg']['status']=='1':
+       ssh.exec_command(v_cron)
+    else:
+       ssh.exec_command(v_cron_)
+
+    ssh.exec_command(v_cron2)
+    ssh.exec_command(v_cron3)
+    print('Remote write_datax_remote_crontab_sync update complete!')
+    ssh.close()
+    return result
+
 def transfer_remote_file(v_tag):
     result  = get_db_config(v_tag)
     print('transfer_remote_file=',result)
@@ -688,6 +847,234 @@ def transfer_remote_file_sync(v_tag):
     ssh.close()
     return result
 
+def query_datax_by_id(sync_id):
+    db  = db_config()['db_mysql']
+    print('db=',db)
+    cr  = db.cursor()
+    sql = """SELECT
+                 a.sync_tag,
+                 a.server_id,
+                 a.sour_db_id,
+                 a.sync_schema,
+                 a.sync_table,
+                 a.sync_incr_col,
+                 e.user,
+                 e.password,
+                 a.sync_columns,
+                 a.sync_table,
+                 CONCAT(e.ip,':',e.port,'/',a.sync_schema) AS mysql_url,
+                 a.zk_hosts,
+                 a.sync_hbase_table,
+                 a.sync_hbase_rowkey,
+                 a.sync_hbase_rowkey_sour,
+                 a.sync_hbase_rowkey_separator,
+                 a.sync_hbase_columns,
+                 a.sync_incr_where,
+                 a.sync_ywlx,
+                 a.sync_type,
+                 a.script_path,
+                 a.run_time,
+                 a.comments,
+                 a.datax_home,
+                 a.sync_time_type,
+                 a.sync_gap,
+                 a.api_server,
+                 a.status,
+                 a.python3_home
+            FROM t_datax_sync_config a,t_server b ,t_dmmx c,t_dmmx d,t_db_source e
+            WHERE a.server_id=b.id AND b.status='1' 
+            AND a.sour_db_id=e.id
+            AND c.dm='08' AND d.dm='09'
+            AND a.sync_ywlx=c.dmm
+            AND a.sync_type=d.dmm
+            AND a.id='{0}'
+         """.format(sync_id)
+    print(sql)
+    cr.execute(sql)
+    rs=cr.fetchone()
+    cr.close()
+    db.commit()
+    return rs
+
+def get_mysql_columns(p_sync):
+    v = '''"{0}",'''.format(p_sync['sync_hbase_rowkey_sour'])
+    for i in p_sync['sync_columns'].split(','):
+        v = v + '''"{}",'''.format(i)
+    print('get_mysql_columns=', v)
+    return v[0:-1]
+
+def process_templete(p_sync_id,p_templete):
+    db = db_config()['db_mysql']
+    v_templete = p_templete
+    p_sync = query_datax_by_id(p_sync_id)
+    v_pass = aes_decrypt(db,p_sync['password'],p_sync['user'])
+    print('process_templete->p_sync=',p_sync)
+    print('process_templete->p_templete=',p_templete)
+    #replace full templete
+    v_templete['full'] = v_templete['full'].replace('$$USERNAME$$',p_sync['user'])
+    v_templete['full'] = v_templete['full'].replace('$$PASSWORD$$',v_pass)
+    v_templete['full'] = v_templete['full'].replace('$$MYSQL_COLUMN_NAMES$$', get_mysql_columns(p_sync))
+    v_templete['full'] = v_templete['full'].replace('$$MYSQL_TABLE_NAME$$', p_sync['sync_table'])
+    v_templete['full'] = v_templete['full'].replace('$$MYSQL_URL$$', p_sync['mysql_url'])
+    v_templete['full'] = v_templete['full'].replace('$$USERNAME$$', p_sync['user'])
+    v_templete['full'] = v_templete['full'].replace('$$ZK_HOSTS', p_sync['zk_hosts'])
+    v_templete['full'] = v_templete['full'].replace('$$HBASE_TABLE_NAME$$', p_sync['sync_hbase_table'])
+    v_templete['full'] = v_templete['full'].replace('$$HBASE_ROWKEY$$', p_sync['sync_hbase_rowkey'])
+    v_templete['full'] = v_templete['full'].replace('$$HBASE_COLUMN_NAMES$$', p_sync['sync_hbase_columns'])
+    #replacre incr templete
+    v_templete['incr'] = v_templete['incr'].replace('$$USERNAME$$', p_sync['user'])
+    v_templete['incr'] = v_templete['incr'].replace('$$PASSWORD$$', v_pass)
+    v_templete['incr'] = v_templete['incr'].replace('$$MYSQL_COLUMN_NAMES$$', get_mysql_columns(p_sync))
+    v_templete['incr'] = v_templete['incr'].replace('$$MYSQL_TABLE_NAME$$', p_sync['sync_table'])
+    v_templete['incr'] = v_templete['incr'].replace('$$MYSQL_URL$$', p_sync['mysql_url'])
+    v_templete['incr'] = v_templete['incr'].replace('$$USERNAME$$', p_sync['user'])
+    v_templete['incr'] = v_templete['incr'].replace('$$ZK_HOSTS', p_sync['zk_hosts'])
+    v_templete['incr'] = v_templete['incr'].replace('$$HBASE_TABLE_NAME$$', p_sync['sync_hbase_table'])
+    v_templete['incr'] = v_templete['incr'].replace('$$HBASE_ROWKEY$$', p_sync['sync_hbase_rowkey'])
+    v_templete['incr'] = v_templete['incr'].replace('$$HBASE_COLUMN_NAMES$$', p_sync['sync_hbase_columns'])
+    v_templete['incr'] = v_templete['incr'].replace('$$MYSQL_WHERE$$', p_sync['sync_incr_where'])
+    print('process_templete->v_templete=', v_templete)
+    return v_templete
+
+def query_datax_sync_dataxTemplete(sync_id):
+    templete   = {}
+    db         = db_config2()['db_mysql']
+    cr         = db.cursor()
+    sql_full   = 'select contents from t_templete where templete_id=1'
+    print(sql_full)
+    cr.execute(sql_full)
+    rs=cr.fetchone()
+    templete['full']   = rs[0]
+    sql_incr = 'select contents from t_templete where templete_id=2'
+    print(sql_incr)
+    cr.execute(sql_incr)
+    rs = cr.fetchone()
+    templete['incr']=rs[0]
+    cr.close()
+    db.commit()
+    v_templete=process_templete(sync_id,templete)
+    print('query_datax_sync_dataxTemplete=',v_templete)
+    return v_templete
+
+def get_datax_sync_templete(id):
+    try:
+        result = {}
+        result['code'] = 200
+        templete       = query_datax_sync_dataxTemplete(id)
+        result['msg']  = templete
+        return result
+    except Exception as e:
+        result = {}
+        result['code'] = -1
+        result['msg']  = str(e)
+        return result
+
+def write_datax_sync_TempleteFile(sync_id,):
+
+    sync_tag = query_datax_by_id(sync_id)['sync_tag']
+
+    #获取模板内容至templete字典中
+    templete = query_datax_sync_dataxTemplete(sync_id)
+
+    #生成全量json文件
+    v_datax_full_file = './datax/{0}_full.json'.format(sync_tag)
+    with open(v_datax_full_file, 'w') as f:
+        f.write(templete['full'])
+
+    #生成增量json文件
+    v_datax_incr_file = './datax/{0}_incr.json'.format(sync_tag)
+    with open(v_datax_incr_file, 'w') as f:
+        f.write(templete['incr'])
+
+    return  v_datax_full_file, v_datax_incr_file
+
+
+def transfer_datax_remote_file_sync(v_tag):
+    print('transfer_remote_file_sync!')
+    result = {}
+    result['code'] = 200
+    result['msg']  = ''
+    result = get_datax_sync_config(v_tag)
+    print('transfer_datax_remote_file_sync=',result)
+    if result['code']!=200:
+       return result
+
+    #Decryption password
+    config = db_config()
+    print('config[db_mysql=', config['db_mysql'])
+    print(result['msg']['server_pass'], result['msg']['server_user'])
+    v_password = aes_decrypt(config['db_mysql'], result['msg']['server_pass'], result['msg']['server_user'])
+    print('transfer_remote_file_sync ->v_password=', v_password)
+
+    transport = paramiko.Transport((result['msg']['server_ip'], int(result['msg']['server_port'])))
+    transport.connect(username=result['msg']['server_user'], password=v_password)
+    sftp = paramiko.SFTPClient.from_transport(transport)
+
+    #create sync directory
+    ssh = paramiko.SSHClient()
+    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    ssh.connect(hostname=result['msg']['server_ip'], port=int(result['msg']['server_port']),
+                username=result['msg']['server_user'], password=v_password)
+    ssh.exec_command('mkdir -p {0}'.format(result['msg']['script_path']))
+    print("remote sync directory '{0}' created!".format(result['msg']['script_path']))
+
+    # write json file
+    f_datax_full,f_datax_incr = write_datax_sync_TempleteFile(result['msg']['id'])
+    print('files=',f_datax_full,f_datax_incr)
+
+    # send full json file
+    # ---------------------------------------------------------------------------------------------------
+    local_file  = '{0}'.format(f_datax_full)
+    remote_file = '{0}/{1}'.format(result['msg']['script_path'], f_datax_full.split('/')[-1])
+    print('transfer_datax_remote_file_sync full file!   ',local_file,remote_file)
+    sftp.put(localpath=local_file, remotepath=remote_file)
+    print('Script:{0} send to {1} ok.'.format(local_file, remote_file))
+
+    # send incr json file
+    local_file  = '{0}'.format(f_datax_incr)
+    remote_file = '{0}/{1}'.format(result['msg']['script_path'], f_datax_incr.split('/')[-1])
+    print('transfer_datax_remote_file_sync incr file!',local_file,remote_file)
+    sftp.put(localpath=local_file, remotepath=remote_file)
+    print('Script:{0} send to {1} ok.'.format(local_file, remote_file))
+
+    # replace datax_sync.py variables
+    templete_file = './templete/datax_sync.py'
+    local_file  = './datax/datax_sync.py'
+    remote_file = '{0}/datax_sync.py'.format(result['msg']['script_path'])
+    print('replace datax_sync.py=', templete_file, local_file, remote_file)
+    with open(local_file, 'w') as obj_file:
+        obj_file.write(get_file_contents(templete_file).
+                       replace('$$API_SERVER$$', result['msg']['api_server']))
+
+    # send datax_sync.py file
+    local_file  = './datax/datax_sync.py'
+    remote_file = '{0}/{1}'.format(result['msg']['script_path'],'datax_sync.py')
+    print('transfer_remote_file_sync'+'$'+local_file+'$'+remote_file.split('/')[-1])
+    sftp.put(localpath=local_file, remotepath=remote_file)
+    print('Script:{0} send to {1} ok.'.format(local_file, remote_file))
+
+
+    # replace datax_sync.sh variables
+    templete_file = './templete/datax_sync.sh'
+    local_file    = './datax/datax_sync.sh'
+    remote_file   = '{0}/datax_sync.sh'.format(result['msg']['script_path'])
+    print('replace datax_sync.sh=', templete_file,local_file,remote_file)
+    with open(local_file, 'w') as obj_file:
+        obj_file.write(get_file_contents(templete_file).
+                       replace('$$PYTHON3_HOME$$', result['msg']['python3_home']).
+                       replace('$$SCRIPT_PATH$$', result['msg']['script_path']))
+
+    # send datax_sync.sh file
+    local_file    = './datax/datax_sync.sh'
+    remote_file   = '{0}/datax_sync.sh'.format(result['msg']['script_path'])
+    sftp.put(localpath=local_file, remotepath=remote_file)
+    sftp.put(localpath='./datax/repstr.sh', remotepath=result['msg']['script_path']+'/repstr.sh')
+    write_log('Script:{0} send to {1} ok.'.format(local_file, remote_file))
+    transport.close()
+    ssh.close()
+    return result
+
+
 def run_remote_cmd(v_tag):
     result = get_db_config(v_tag)
     if result['code'] != 200:
@@ -738,6 +1125,44 @@ def run_remote_cmd_sync(v_tag):
     print('run_remote_cmd_sync! exec_command!')
     ssh.close()
     return result
+
+def run_datax_remote_cmd_sync(v_tag):
+    # Init dict
+    result = {}
+    result['code'] = 200
+    result['msg'] = ''
+    print('run_datax_remote_cmd_sync!')
+    result = get_datax_sync_config(v_tag)
+    if result['code'] != 200:
+        return result
+
+    # Decryption password
+    config = db_config()
+    print('config[db_mysql=', config['db_mysql'])
+    print(result['msg']['server_pass'], result['msg']['server_user'])
+    v_password = aes_decrypt(config['db_mysql'], result['msg']['server_pass'], result['msg']['server_user'])
+    print('run_remote_cmd_sync ->v_password=', v_password)
+
+    ssh = paramiko.SSHClient()
+    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    ssh.connect(hostname=result['msg']['server_ip'] ,port=int(result['msg']['server_port']),
+                username=result['msg']['server_user'],password=v_password)
+    print('run_datax_remote_cmd_sync! connect!')
+
+    #为.sh,.py文件授执行权限
+    ssh.exec_command('chmod +x {0}'.format(result['msg']['script_path']+'/repstr.sh'))
+    ssh.exec_command('chmod +x {0}'.format(result['msg']['script_path']+'/datax_sync.sh'))
+    ssh.exec_command('chmod +x {0}'.format(result['msg']['script_path']+'/datax_sync.py'))
+
+    #替换datax配置文件中^M字符
+    print('Replace ^M 字符...{0}'.format(result['msg']['script_path'],result['msg']['script_path']+'/'+v_tag+'_full.json'))
+    ssh.exec_command('{0}/repstr.sh {1}'.format(result['msg']['script_path'],result['msg']['script_path']+'/'+v_tag+'_full.json'))
+    ssh.exec_command('{0}/repstr.sh {1}'.format(result['msg']['script_path'],result['msg']['script_path']+'/'+v_tag+'_incr.json'))
+
+    print('run_remote_cmd_sync! exec_command!')
+    ssh.close()
+    return result
+
 
 class read_config_backup(tornado.web.RequestHandler):
     def post(self):
@@ -832,6 +1257,45 @@ class read_config_sync(tornado.web.RequestHandler):
             self.write(v_json)
         except Exception as e:
             write_log(str(e))
+            result['code'] = -1
+            result['msg'] = str(e)
+            self.write(v_json)
+
+
+class read_datax_config_sync(tornado.web.RequestHandler):
+    def post(self):
+        try:
+            self.set_header("Content-Type", "application/json; charset=UTF-8")
+            v_tag   = self.get_argument("tag")
+            result  = get_datax_sync_config(v_tag)
+            v_json  = json.dumps(result)
+            write_log("{0} dbops api interface /read_datax_config_sync success!".format(get_time()))
+            write_log("入口参数：\n\t{0}".format(v_tag))
+            write_log("出口参数：")
+            if result['code']==200:
+                print_dict(result['msg'])
+            self.write(v_json)
+        except Exception as e:
+            write_log(str(e))
+
+
+class read_datax_templete(tornado.web.RequestHandler):
+    def post(self):
+        self.set_header("Content-Type", "application/json; charset=UTF-8")
+        v_id    = self.get_argument("id")
+        result  = get_datax_sync_templete(v_id)
+        v_json  = json.dumps(result)
+        print('read_datax_templete=', result)
+        print('v_json=', v_json)
+        if result['code'] == 200:
+            write_log("{0} dbops api interface /read_datax_templete success!".format(get_time()))
+            write_log("入口参数：\n\t{0}".format(v_id))
+            write_log("出口参数：")
+            print_dict(result['msg'])
+            self.write(v_json)
+        else:
+            print_dict(result['msg'])
+
 
 class set_crontab_local(tornado.web.RequestHandler):
     ##################################################################################
@@ -1002,7 +1466,7 @@ class push_script_remote_sync(tornado.web.RequestHandler):
                return
 
             v_json  = json.dumps(result)
-            write_log("{0} dbops api interface /push_script success!".format(get_time()))
+            write_log("{0} dbops api interface /push_script_remote_sync success!".format(get_time()))
             write_log("入口参数：\n\t{0}".format(v_tag))
             write_log("出口参数：")
             print_dict(result['msg'] )
@@ -1011,6 +1475,42 @@ class push_script_remote_sync(tornado.web.RequestHandler):
         except Exception as e:
             print(str(e))
             write_log(str(e))
+
+class push_datax_remote_sync(tornado.web.RequestHandler):
+    def post(self):
+        try:
+            self.set_header("Content-Type", "application/json; charset=UTF-8")
+            v_tag   = self.get_argument("tag")
+            result  = transfer_datax_remote_file_sync(v_tag)
+            if result['code']!=200:
+               v_json = json.dumps(result)
+               print('v_json=',v_json)
+               self.write(v_json)
+               return
+
+            result  = run_datax_remote_cmd_sync(v_tag)
+            if result['code']!=200:
+               v_json = json.dumps(result)
+               print(v_json)
+               self.write(v_json)
+               return
+
+            result  = write_datax_remote_crontab_sync(v_tag)
+            if result['code']!=200:
+               v_json = json.dumps(result)
+               print(v_json)
+               self.write(v_json)
+               return
+
+            v_json  = json.dumps(result)
+            write_log("{0} dbops api interface /push_datax_remote_sync success!".format(get_time()))
+            write_log("入口参数：\n\t{0}".format(v_tag))
+            write_log("出口参数：")
+            print_dict(result['msg'] )
+            print(v_json)
+            self.write(v_json)
+        except Exception as e:
+            print(str(e))
 
 class write_sync_log(tornado.web.RequestHandler):
     def post(self):
@@ -1065,13 +1565,17 @@ class Application(tornado.web.Application):
             (r"/write_sync_log_detail"  , write_sync_log_detail),
             (r"/run_script_remote_sync",  run_script_remote_sync),
             (r"/stop_script_remote_sync", stop_script_remote_sync),
+
+            # dataX同步API接口
+            (r"/push_datax_remote_sync", push_datax_remote_sync),
+            (r"/read_datax_config_sync", read_datax_config_sync),
+            (r"/read_datax_templete",    read_datax_templete),
         ]
         tornado.web.Application.__init__(self, handlers)
 
 if __name__ == '__main__':
     tornado.options.parse_command_line()
     http_server = tornado.httpserver.HTTPServer(Application())
-    #http_server.listen(options.port)
     http_server.listen(sys.argv[1])
     print('Dbops Api Server running {0} port ...'.format(sys.argv[1]))
     tornado.ioloop.IOLoop.instance().start()

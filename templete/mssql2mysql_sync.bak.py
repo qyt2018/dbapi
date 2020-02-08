@@ -202,7 +202,9 @@ def aes_decrypt(p_password,p_key):
 
 def get_config_from_db(tag,workdir):
     try:
-        values = {'tag': tag }
+        values = {
+            'tag': tag
+        }
         print('values=', values)
         url = 'http://$$API_SERVER$$/read_config_sync'
         context = ssl._create_unverified_context()
@@ -214,78 +216,50 @@ def get_config_from_db(tag,workdir):
         print(res, res['code'])
         if res['code'] == 200:
             print('接口调用成功!')
-            try:
-                config = res['msg']
-                config['sync_time_type_name']  = get_sync_time_type_name(config['sync_time_type'])
-                db_sour_ip                     = config['sync_db_sour'].split(':')[0]
-                db_sour_port                   = config['sync_db_sour'].split(':')[1]
-                db_sour_service                = config['sync_db_sour'].split(':')[2]
-                db_sour_user                   = config['sync_db_sour'].split(':')[3]
-                db_sour_pass                   = aes_decrypt(config['sync_db_sour'].split(':')[4],db_sour_user)
-                db_dest_ip                     = config['sync_db_dest'].split(':')[0]
-                db_dest_port                   = config['sync_db_dest'].split(':')[1]
-                db_dest_service                = config['sync_db_dest'].split(':')[2]
-                db_dest_user                   = config['sync_db_dest'].split(':')[3]
-                db_dest_pass                   = aes_decrypt(config['sync_db_dest'].split(':')[4],db_dest_user)
-                config['db_sqlserver_ip']      = db_sour_ip
-                config['db_sqlserver_port']    = db_sour_port
-                config['db_sqlserver_service'] = db_sour_service
-                config['db_sqlserver_user']    = db_sour_user
-                config['db_sqlserver_pass']    = db_sour_pass
-                config['db_mysql_ip']          = db_dest_ip
-                config['db_mysql_port']        = db_dest_port
-                config['db_mysql_service']     = db_dest_service
-                config['db_mysql_user']        = db_dest_user
-                config['db_mysql_pass']        = db_dest_pass
-                config['db_sqlserver_string']  = db_sour_ip + ':' + db_sour_port + '/' + db_sour_service
-                config['db_mysql_string']      = db_dest_ip + ':' + db_dest_port + '/' + db_dest_service
-                config['db_sqlserver']         = get_ds_sqlserver(db_sour_ip, db_sour_port, db_sour_service, db_sour_user, db_sour_pass)
-                config['db_sqlserver2']        = get_ds_sqlserver(db_sour_ip, db_sour_port, db_sour_service, db_sour_user,db_sour_pass)
-                config['db_mysql']             = get_ds_mysql(db_dest_ip, db_dest_port, db_dest_service, db_dest_user, db_dest_pass)
-                config['db_sqlserver3']        = get_ds_sqlserver(db_sour_ip, db_sour_port, db_sour_service, db_sour_user,db_sour_pass)
-                config['db_mysql3']            = get_ds_mysql(db_dest_ip, db_dest_port, db_dest_service, db_dest_user, db_dest_pass)
-                config['run_mode']             = 'remote'
-                #write local config file
-                write_local_config_file(config)
-                return config
-            except Exception as e:
-                v_error = '从接口配置获取数据库连接对象时出现异常:{0}'.format(traceback.format_exc())
-                print(v_error)
-                exception_connect_db(config, v_error)
-                exit(0)
+            config = res['msg']
+            config['sync_time_type_name'] = get_sync_time_type_name(config['sync_time_type'])
+            db_sour_ip      = config['sync_db_sour'].split(':')[0]
+            db_sour_port    = config['sync_db_sour'].split(':')[1]
+            db_sour_service = config['sync_db_sour'].split(':')[2]
+            db_sour_user    = config['sync_db_sour'].split(':')[3]
+            db_sour_pass    = aes_decrypt(config['sync_db_sour'].split(':')[4],db_sour_user)
+            db_dest_ip      = config['sync_db_dest'].split(':')[0]
+            db_dest_port    = config['sync_db_dest'].split(':')[1]
+            db_dest_service = config['sync_db_dest'].split(':')[2]
+            db_dest_user    = config['sync_db_dest'].split(':')[3]
+            db_dest_pass    = aes_decrypt(config['sync_db_dest'].split(':')[4],db_dest_user)
+            config['db_sqlserver_ip']      = db_sour_ip
+            config['db_sqlserver_port']    = db_sour_port
+            config['db_sqlserver_service'] = db_sour_service
+            config['db_sqlserver_user']    = db_sour_user
+            config['db_sqlserver_pass']    = db_sour_pass
+            config['db_mysql_ip']          = db_dest_ip
+            config['db_mysql_port']        = db_dest_port
+            config['db_mysql_service']     = db_dest_service
+            config['db_mysql_user']        = db_dest_user
+            config['db_mysql_pass']        = db_dest_pass
+            config['db_sqlserver_string']  = db_sour_ip + ':' + db_sour_port + '/' + db_sour_service
+            config['db_mysql_string']      = db_dest_ip + ':' + db_dest_port + '/' + db_dest_service
+            config['db_sqlserver']         = get_ds_sqlserver(db_sour_ip, db_sour_port, db_sour_service, db_sour_user, db_sour_pass)
+            config['db_sqlserver2']        = get_ds_sqlserver(db_sour_ip, db_sour_port, db_sour_service, db_sour_user,
+                                                       db_sour_pass)
+            config['db_mysql']             = get_ds_mysql(db_dest_ip, db_dest_port, db_dest_service, db_dest_user, db_dest_pass)
+            config['db_sqlserver3']        = get_ds_sqlserver(db_sour_ip, db_sour_port, db_sour_service, db_sour_user,
+                                                       db_sour_pass)
+            config['db_mysql3']            = get_ds_mysql(db_dest_ip, db_dest_port, db_dest_service, db_dest_user, db_dest_pass)
+            config['run_mode']             = 'remote'
+            #write local config file
+            write_local_config_file(config)
+            return config
         else:
-            print('接口调用失败!,{0}'.format(res['msg']))  #发异常邮件
-            v_title   = '数据同步接口异常[★]'
-            v_content = '''<table class='xwtable'>
-                               <tr><td  width="30%">接口地址</td><td  width="70%">$$interface$$</td></tr>
-                               <tr><td  width="30%">接口参数</td><td  width="70%">$$parameter$$</td></tr>
-                               <tr><td  width="30%">错误信息</td><td  width="70%">$$error$$</td></tr>            
-                           </table>'''
-            v_content = v_content.replace('$$interface$$', url)
-            v_content = v_content.replace('$$parameter$$', json.dumps(values))
-            v_content = v_content.replace('$$error$$', res['msg'])
-            exception_interface(v_title,v_content)
+            print('接口调用失败!,{0}'.format(res['msg']))
             sys.exit(0)
     except Exception as e :
         file_name = workdir + '/config/' + tag + '.ini'
         print('接口调用失败:{0}'.format(str(e)))
-        print('从本地读取最近一次配置文件1：{0}'.format(file_name))
-        v_title   = '数据同步接口异常[★★]'
-        v_desc    = '同步任务运行于本地配置文件模式中，请尽快处理! 自动从本地读取最近一次配置文件进行同步：{0}'.format(file_name)
-        v_content = '''<table class='xwtable'>
-                           <tr><td  width="30%">接口地址</td><td  width="70%">$$interface$$</td></tr>
-                           <tr><td  width="30%">接口参数</td><td  width="70%">$$parameter$$</td></tr>
-                           <tr><td  width="30%">错误信息</td><td  width="70%">$$error$$</td></tr> 
-                           <tr><td  width="30%">说明信息</td><td  width="70%">$$desc$$</td></tr>               
-                       </table>'''
-        v_content = v_content.replace('$$interface$$', url)
-        v_content = v_content.replace('$$parameter$$',  json.dumps(values))
-        v_content = v_content.replace('$$error$$', traceback.format_exc())
-        v_content = v_content.replace('$$desc$$', v_desc)
-        exception_interface(v_title, v_content)
-        config = get_config(file_name, tag)
+        print('从本地读取最近一次配置文件：{0}'.format(file_name))
+        config = get_config(file_name,tag)
         return config
-
 
 def write_log(msg):
     file_name   = '/tmp/mysql_sync.log'
@@ -345,63 +319,55 @@ def write_sync_log_detail(config):
         write_log('Interface write_sync_log_detail call failed!')
 
 def get_config(fname,tag):
-    try:
-        config = {}
-        cfg=configparser.ConfigParser()
-        cfg.read(fname,encoding="utf-8-sig")
-        sync_server_sour                  = cfg.get("sync", "sync_db_server")
-        sync_server_dest                  = cfg.get("sync", "sync_db_mysql")
-        config['sync_table']              = cfg.get("sync", "sync_table").lower()
-        config['sync_col_name']           = cfg.get("sync", "sync_col_name").lower()
-        config['sync_col_val']            = cfg.get("sync", "sync_col_val").lower()
-        config['batch_size']              = cfg.get("sync", "batch_size")
-        config['batch_size_incr']         = cfg.get("sync", "batch_size_incr")
-        config['sync_gap']                = cfg.get("sync", "sync_gap")
-        config['sync_time_type']          = cfg.get("sync", "sync_time_type")
-        config['sync_time_type_name']     = get_sync_time_type_name(config['sync_time_type'])
-        db_sour_ip                        = sync_server_sour.split(':')[0]
-        db_sour_port                      = sync_server_sour.split(':')[1]
-        db_sour_service                   = sync_server_sour.split(':')[2]
-        db_sour_user                      = sync_server_sour.split(':')[3]
-        db_sour_pass                      = sync_server_sour.split(':')[4]
-        db_dest_ip                        = sync_server_dest.split(':')[0]
-        db_dest_port                      = sync_server_dest.split(':')[1]
-        db_dest_service                   = sync_server_dest.split(':')[2]
-        db_dest_user                      = sync_server_dest.split(':')[3]
-        db_dest_pass                      = sync_server_dest.split(':')[4]
-        config['db_sqlserver_ip']         = db_sour_ip
-        config['db_sqlserver_port']       = db_sour_port
-        config['db_sqlserver_service']    = db_sour_service
-        config['db_sqlserver_user']       = db_sour_user
-        config['db_sqlserver_pass']       = db_sour_pass
-        config['db_mysql_ip']             = db_dest_ip
-        config['db_mysql_port']           = db_dest_port
-        config['db_mysql_service']        = db_dest_service
-        config['db_mysql_user']           = db_dest_user
-        config['db_mysql_pass']           = db_dest_pass
-        config['db_sqlserver_string']     = db_sour_ip+':'+db_sour_port+'/'+db_sour_service
-        config['db_mysql_string']         = db_dest_ip+':'+db_dest_port+'/'+db_dest_service
-        config['db_sqlserver']            = get_ds_sqlserver(db_sour_ip,db_sour_port ,db_sour_service,db_sour_user,db_sour_pass)
-        config['db_sqlserver2']           = get_ds_sqlserver(db_sour_ip, db_sour_port, db_sour_service, db_sour_user, db_sour_pass)
-        config['db_mysql']                = get_ds_mysql(db_dest_ip,db_dest_port ,db_dest_service,db_dest_user,db_dest_pass)
-        config['db_sqlserver3']           = get_ds_sqlserver(db_sour_ip, db_sour_port, db_sour_service, db_sour_user, db_sour_pass)
-        config['db_mysql3']               = get_ds_mysql(db_dest_ip, db_dest_port, db_dest_service, db_dest_user, db_dest_pass)
-        config['run_mode']                = 'local'
-        config['sync_tag']                = tag
-        return config
-    except Exception as e:
-        v_error = '从本地读取最近一次本地配置文件获取数据源时出现异常:{0}'.format(str(e))
-        print(v_error)
-        exception_connect_db(config, v_error)
-        exit(0)
-
+    config = {}
+    cfg=configparser.ConfigParser()
+    cfg.read(fname,encoding="utf-8-sig")
+    sync_server_sour                  = cfg.get("sync", "sync_db_server")
+    sync_server_dest                  = cfg.get("sync", "sync_db_mysql")
+    config['sync_table']              = cfg.get("sync", "sync_table").lower()
+    config['sync_col_name']           = cfg.get("sync", "sync_col_name").lower()
+    config['sync_col_val']            = cfg.get("sync", "sync_col_val").lower()
+    config['batch_size']              = cfg.get("sync", "batch_size")
+    config['batch_size_incr']         = cfg.get("sync", "batch_size_incr")
+    config['sync_gap']                = cfg.get("sync", "sync_gap")
+    config['sync_time_type']          = cfg.get("sync", "sync_time_type")
+    config['sync_time_type_name']     = get_sync_time_type_name(config['sync_time_type'])
+    db_sour_ip                        = sync_server_sour.split(':')[0]
+    db_sour_port                      = sync_server_sour.split(':')[1]
+    db_sour_service                   = sync_server_sour.split(':')[2]
+    db_sour_user                      = sync_server_sour.split(':')[3]
+    db_sour_pass                      = sync_server_sour.split(':')[4]
+    db_dest_ip                        = sync_server_dest.split(':')[0]
+    db_dest_port                      = sync_server_dest.split(':')[1]
+    db_dest_service                   = sync_server_dest.split(':')[2]
+    db_dest_user                      = sync_server_dest.split(':')[3]
+    db_dest_pass                      = sync_server_dest.split(':')[4]
+    config['db_sqlserver_ip']         = db_sour_ip
+    config['db_sqlserver_port']       = db_sour_port
+    config['db_sqlserver_service']    = db_sour_service
+    config['db_sqlserver_user']       = db_sour_user
+    config['db_sqlserver_pass']       = db_sour_pass
+    config['db_mysql_ip']             = db_dest_ip
+    config['db_mysql_port']           = db_dest_port
+    config['db_mysql_service']        = db_dest_service
+    config['db_mysql_user']           = db_dest_user
+    config['db_mysql_pass']           = db_dest_pass
+    config['db_sqlserver_string']     = db_sour_ip+':'+db_sour_port+'/'+db_sour_service
+    config['db_mysql_string']         = db_dest_ip+':'+db_dest_port+'/'+db_dest_service
+    config['db_sqlserver']            = get_ds_sqlserver(db_sour_ip,db_sour_port ,db_sour_service,db_sour_user,db_sour_pass)
+    config['db_sqlserver2']           = get_ds_sqlserver(db_sour_ip, db_sour_port, db_sour_service, db_sour_user, db_sour_pass)
+    config['db_mysql']                = get_ds_mysql(db_dest_ip,db_dest_port ,db_dest_service,db_dest_user,db_dest_pass)
+    config['db_sqlserver3']           = get_ds_sqlserver(db_sour_ip, db_sour_port, db_sour_service, db_sour_user, db_sour_pass)
+    config['db_mysql3']               = get_ds_mysql(db_dest_ip, db_dest_port, db_dest_service, db_dest_user, db_dest_pass)
+    config['run_mode']                = 'local'
+    config['sync_tag']                = tag
+    return config
 
 def check_mysql_tab_exists(config,tab):
    db=config['db_mysql']
    cr=db.cursor()
    sql="""select count(0) from information_schema.tables
             where table_schema='{0}' and table_name='{1}'""".format(config['db_mysql_service'],tab )
-   config['run_sql'] = sql
    cr.execute(sql)
    rs=cr.fetchone()
    cr.close()
@@ -413,7 +379,6 @@ def check_mysql_col_exists(config,tab,col):
    cr=db.cursor()
    sql="""select count(0) from information_schema.columns
             where table_schema='{0}' and table_name='{1}' and column_name='{2}'""".format(config['db_mysql_service'],tab,col )
-   config['run_sql'] = sql
    cr.execute(sql)
    rs=cr.fetchone()
    cr.close()
@@ -424,7 +389,6 @@ def get_mysql_tab_rows(config,tab):
    db=config['db_mysql']
    cr=db.cursor()
    sql="""select count(0) from {0}""".format(tab )
-   config['run_sql'] = sql
    cr.execute(sql)
    rs=cr.fetchone()
    cr.close()
@@ -435,7 +399,6 @@ def check_sqlserver_tab_exists_data(config,tname):
    db=config['db_sqlserver']
    cr=db.cursor()
    sql="select count(0) from {0}".format(tname)
-   config['run_sql'] = sql
    cr.execute(sql)
    rs=cr.fetchone()
    cr.close()
@@ -446,7 +409,6 @@ def check_mysql_tab_sync(config,tab):
    db=config['db_mysql']
    cr=db.cursor()
    sql="select count(0) from {0}".format(tab)
-   config['run_sql'] = sql
    cr.execute(sql)
    rs=cr.fetchone()
    cr.close()
@@ -467,7 +429,6 @@ def check_sqlserver_tab_exists_pk(config,tab):
                       inner join dbo.sysobjects so on so.name = si.name and so.xtype = 'pk'
                   where  sc.id = col.id  and sc.colid = col.colid)=1
          """.format(tab)
-   config['run_sql'] = sql
    cr.execute(sql)
    rs=cr.fetchone()
    cr.close()
@@ -518,7 +479,6 @@ def get_tab_columns(config,tab):
                             inner join dbo.sysobjects so ON so.name = si.name AND so.xtype = 'PK'
                             where sik.id=obj.id and sik.colid=col.colid),'N') desc,col.colid    
         """.format(tab)
-    config['run_sql'] = sql
     cr.execute(sql)
     rs=cr.fetchall()
     s1=""
@@ -539,7 +499,6 @@ def get_tab_columns_incr(config,tab):
                             inner join dbo.sysobjects so ON so.name = si.name AND so.xtype = 'PK'
                             where sik.id=obj.id and sik.colid=col.colid),'N') desc,col.colid    
         """.format(tab)
-    config['run_sql'] = sql
     cr.execute(sql)
     rs=cr.fetchall()
     s1=""
@@ -553,7 +512,6 @@ def get_tab_columns_incr(config,tab):
 def get_tab_header(config,tab):
     cr=config['db_sqlserver'].cursor()
     sql="select top 1 * from {0}".format(tab)
-    config['run_sql'] = sql
     cr.execute(sql)
     desc=cr.description
     s1="insert into "+get_mapping_tname(tab.lower())+"("
@@ -576,7 +534,6 @@ def check_sync_sqlserver_col_comments(config,tab):
                     LEFT JOIN sys.extended_properties C ON C.major_id = B.id AND C.minor_id = B.colid
                     WHERE A.name = '{0}'  and c.value is not null        
                    """.format(tab)
-    config['run_sql'] = v_comment
     cr_source.execute(v_comment)
     rs_source = cr_source.fetchone()
     return rs_source[0]
@@ -604,12 +561,10 @@ def sync_sqlserver_col_comments(config,tab):
                 LEFT JOIN sys.extended_properties C ON C.major_id = B.id AND C.minor_id = B.colid
                 WHERE A.name = '{0}'  and c.value is not null        
                """.format(tab)
-    config['run_sql'] = v_comment
     cr_source.execute(v_comment)
     rs_source = cr_source.fetchall()
     for j in range(len(rs_source)):
         v_ddl_sql = rs_source[j][0]
-        config['run_sql'] = convert(v_ddl_sql)
         cr_desc.execute(convert(v_ddl_sql))
     db_desc.commit()
     cr_desc.close()
@@ -619,7 +574,6 @@ def check_sync_sqlserver_tab_comments(config,tab):
     cr_source = db_source.cursor()
     v_comment ="""select count(0)  from sys.extended_properties A  
                   where A.major_id=object_id('{0}')  and a.name='{0}'""".format(tab,tab)
-    config['run_sql'] = v_comment
     cr_source.execute(v_comment)
     rs_source = cr_source.fetchone()
     return rs_source[0]
@@ -634,12 +588,10 @@ def sync_sqlserver_tab_comments(config,tab):
                   from sys.extended_properties A  
                   where A.major_id=object_id('{0}')
                     and a.name='{0}'""".format(tab,tab)
-    config['run_sql'] = v_comment
     cr_source.execute(v_comment)
     rs_source = cr_source.fetchone()
     if len(rs_source)>0:
         v_ddl_sql = rs_source[0]
-        config['run_sql'] = v_ddl_sql
         cr_desc.execute(v_ddl_sql)
         cr_desc.close()
 
@@ -675,7 +627,6 @@ def f_get_table_ddl(config,tab):
                     left join sys.extended_properties g on a.id=g.major_id AND a.colid = g.major_id
                     where d.id=object_id('{0}') 
                     order by 6 desc,a.id,a.colorder""".format(tab)
-    config['run_sql'] = v_sql
     cr_source.execute(v_sql)
     rs=cr_source.fetchall()
     v_cre_tab= 'create table '+tab+'(';
@@ -693,87 +644,76 @@ def f_get_table_ddl(config,tab):
     return v_cre_tab[0:-1]+')'
 
 def sync_sqlserver_ddl(config,debug):
-    try:
-        db_source = config['db_sqlserver']
-        cr_source = db_source.cursor()
-        db_desc   = config['db_mysql']
-        cr_desc   = db_desc.cursor()
-        for i in config['sync_table'].split(","):
-            tab=i.split(':')[0]
-            cr_source.execute("""select id,
-                                        OBJECT_SCHEMA_NAME(id) as schema_name, 
-                                        OBJECT_NAME(id) as table_name,
-                                        DB_NAME() as db_name,
-                                        OBJECT_SCHEMA_NAME(id)+'.'+OBJECT_NAME(id) as full_table_name
-                                 from sysobjects 
-                                 where xtype='U' and id=object_id('{0}') order by name""".format(tab))
-            rs_source = cr_source.fetchall()
-            for j in range(len(rs_source)):
-                tab_name      = rs_source[j][2].lower()
-                tab_prefix    = (str(rs_source[j][1]) + '.').lower()
-                full_tab_name = rs_source[j][4].lower()
-                if check_sqlserver_tab_exists_pk(config,tab)==0:
-                   print("DB:{0},Table:{1} not exist primary,ignore!".format(config['db_sqlserver_string'],full_tab_name))
-                   v_ddl_sql = f_get_table_ddl(config, full_tab_name)
-                   #print(v_ddl_sql)
-                   v_cre_sql = v_ddl_sql.replace(full_tab_name, get_mapping_tname(full_tab_name))
-                   if check_mysql_tab_exists(config, get_mapping_tname(full_tab_name)) > 0:
-                       print("DB:{0},Table :{1} already exists!".format(config['db_mysql_string'],get_mapping_tname(full_tab_name)))
-                   else:
-                       config['run_sql'] = convert(v_cre_sql)
-                       cr_desc.execute(convert(v_cre_sql))
-                       print("Table:{0} creating success!".format(get_mapping_tname(full_tab_name)))
-                       config['run_sql'] = 'alter table {0} add {1} int'.format(get_mapping_tname(full_tab_name), config['sync_col_name'])
-                       cr_desc.execute('alter table {0} add {1} int'.format(get_mapping_tname(full_tab_name), config['sync_col_name']))
-                       print("Table:{0} add column {1} success!".format(get_mapping_tname(full_tab_name),config['sync_col_name']))
-                       v_pk_sql="""ALTER TABLE {0} ADD COLUMN pkid INT(11) NOT NULL AUTO_INCREMENT FIRST, ADD PRIMARY KEY (pkid)
-                                """.format(get_mapping_tname(full_tab_name))
-                       print("Table:{0} add primary key pkid success!".format(get_mapping_tname(full_tab_name)))
-                       config['run_sql'] = v_pk_sql
-                       cr_desc.execute(v_pk_sql)
-                       db_desc.commit()
-                       #create mysql table comments
-                       if check_sync_sqlserver_tab_comments(config, tab) > 0:
-                           sync_sqlserver_tab_comments(config, tab)
-                           print("Table:{0}  comments create complete!".format(tab))
-                       #create mysql table column comments
-                       if check_sync_sqlserver_col_comments(config, tab) > 0:
-                           sync_sqlserver_col_comments(config, tab)
-                           print("Table:{0} columns comments create complete!".format(tab))
+    db_source = config['db_sqlserver']
+    cr_source = db_source.cursor()
+    db_desc   = config['db_mysql']
+    cr_desc   = db_desc.cursor()
+    for i in config['sync_table'].split(","):
+        tab=i.split(':')[0]
+        cr_source.execute("""select id,
+                                    OBJECT_SCHEMA_NAME(id) as schema_name, 
+                                    OBJECT_NAME(id) as table_name,
+                                    DB_NAME() as db_name,
+                                    OBJECT_SCHEMA_NAME(id)+'.'+OBJECT_NAME(id) as full_table_name
+                             from sysobjects 
+                             where xtype='U' and id=object_id('{0}') order by name""".format(tab))
+        rs_source = cr_source.fetchall()
+        for j in range(len(rs_source)):
+            tab_name = rs_source[j][2].lower()
+            tab_prefix = (str(rs_source[j][1]) + '.').lower()
+            full_tab_name = rs_source[j][4].lower()
+            if check_sqlserver_tab_exists_pk(config,tab)==0:
+               print("DB:{0},Table:{1} not exist primary,ignore!".format(config['db_sqlserver_string'],full_tab_name))
+               v_ddl_sql = f_get_table_ddl(config, full_tab_name)
+               #print(v_ddl_sql)
+               v_cre_sql = v_ddl_sql.replace(full_tab_name, get_mapping_tname(full_tab_name))
+               if check_mysql_tab_exists(config, get_mapping_tname(full_tab_name)) > 0:
+                   print("DB:{0},Table :{1} already exists!".format(config['db_mysql_string'],get_mapping_tname(full_tab_name)))
+               else:
+                   cr_desc.execute(convert(v_cre_sql))
+                   print("Table:{0} creating success!".format(get_mapping_tname(full_tab_name)))
+                   cr_desc.execute('alter table {0} add {1} int'.format(get_mapping_tname(full_tab_name), config['sync_col_name']))
+                   print("Table:{0} add column {1} success!".format(get_mapping_tname(full_tab_name),config['sync_col_name']))
+                   v_pk_sql="""ALTER TABLE {0} ADD COLUMN pkid INT(11) NOT NULL AUTO_INCREMENT FIRST, ADD PRIMARY KEY (pkid)
+                            """.format(get_mapping_tname(full_tab_name))
+                   print("Table:{0} add primary key pkid success!".format(get_mapping_tname(full_tab_name)))
+                   cr_desc.execute(v_pk_sql)
+                   db_desc.commit()
+                   #create mysql table comments
+                   if check_sync_sqlserver_tab_comments(config, tab) > 0:
+                       sync_sqlserver_tab_comments(config, tab)
+                       print("Table:{0}  comments create complete!".format(tab))
+                   #create mysql table column comments
+                   if check_sync_sqlserver_col_comments(config, tab) > 0:
+                       sync_sqlserver_col_comments(config, tab)
+                       print("Table:{0} columns comments create complete!".format(tab))
 
-                else:
-                   #编写函数完成生成创表语句
-                   v_ddl_sql = f_get_table_ddl(config,full_tab_name)
-                   v_cre_sql = v_ddl_sql.replace(full_tab_name,get_mapping_tname(full_tab_name))
+            else:
+               #编写函数完成生成创表语句
+               v_ddl_sql = f_get_table_ddl(config,full_tab_name)
+               v_cre_sql = v_ddl_sql.replace(full_tab_name,get_mapping_tname(full_tab_name))
 
-                   if check_mysql_tab_exists(config,get_mapping_tname(full_tab_name))>0:
-                       print("DB:{0},Table :{1} already exists!".format(config['db_mysql_string'],get_mapping_tname(full_tab_name)))
-                   else:
-                      config['run_sql'] = convert(v_cre_sql)
-                      cr_desc.execute(convert(v_cre_sql))
-                      print("Table:{0} creating success!".format(get_mapping_tname(full_tab_name)))
-                      config['run_sql'] = 'alter table {0} add primary key ({1})'.format(get_mapping_tname(full_tab_name),get_sync_table_pk_names(config, full_tab_name))
-                      cr_desc.execute('alter table {0} add primary key ({1})'.format(get_mapping_tname(full_tab_name),get_sync_table_pk_names(config, full_tab_name)))
-                      print("Table:{0} add primary key {1} success!".format(get_mapping_tname(full_tab_name),get_sync_table_pk_names(config, full_tab_name)))
-                      config['run_sql'] = 'alter table {0} add {1} int'.format(get_mapping_tname(full_tab_name),config['sync_col_name'])
-                      cr_desc.execute('alter table {0} add {1} int'.format(get_mapping_tname(full_tab_name),config['sync_col_name']))
-                      print("Table:{0} add column {1} success!".format(get_mapping_tname(full_tab_name),config['sync_col_name']))
-                      db_desc.commit()
-                      #create mysql table comments
-                      if check_sync_sqlserver_tab_comments(config,tab)>0:
-                         sync_sqlserver_tab_comments(config, tab)
-                         print("Table:{0}  comments create complete!".format(tab))
-                      #create mysql table column comments
-                      if check_sync_sqlserver_col_comments(config,tab)>0:
-                         sync_sqlserver_col_comments(config, tab)
-                         print("Table:{0} columns comments create complete!".format(tab))
+               if check_mysql_tab_exists(config,get_mapping_tname(full_tab_name))>0:
+                   print("DB:{0},Table :{1} already exists!".format(config['db_mysql_string'],get_mapping_tname(full_tab_name)))
+               else:
+                  cr_desc.execute(convert(v_cre_sql))
+                  print("Table:{0} creating success!".format(get_mapping_tname(full_tab_name)))
+                  cr_desc.execute('alter table {0} add primary key ({1})'.format(get_mapping_tname(full_tab_name),get_sync_table_pk_names(config, full_tab_name)))
+                  print("Table:{0} add primary key {1} success!".format(get_mapping_tname(full_tab_name),get_sync_table_pk_names(config, full_tab_name)))
+                  cr_desc.execute('alter table {0} add {1} int'.format(get_mapping_tname(full_tab_name),config['sync_col_name']))
+                  print("Table:{0} add column {1} success!".format(get_mapping_tname(full_tab_name),config['sync_col_name']))
+                  db_desc.commit()
+                  #create mysql table comments
+                  if check_sync_sqlserver_tab_comments(config,tab)>0:
+                     sync_sqlserver_tab_comments(config, tab)
+                     print("Table:{0}  comments create complete!".format(tab))
+                  #create mysql table column comments
+                  if check_sync_sqlserver_col_comments(config,tab)>0:
+                     sync_sqlserver_col_comments(config, tab)
+                     print("Table:{0} columns comments create complete!".format(tab))
 
-        cr_source.close()
-        cr_desc.close()
-    except Exception as e:
-        print('sync_sqlserver_ddl exceptiion:'+traceback.format_exc())
-        exception_running(config,traceback.format_exc())
-        exit(0)
+    cr_source.close()
+    cr_desc.close()
 
 def get_sync_table_total_rows(config,tab,v_where):
     db_source = config['db_sqlserver']
@@ -1122,100 +1062,89 @@ def delete_data(config):
         #time.sleep(100)
 
 def sync_sqlserver_init(config,debug):
-    try:
-        config_init = {}
-        for i in config['sync_table'].split(","):
-            tab=i.split(':')[0]
-            config_init[tab] = False
-            if (check_mysql_tab_exists(config,get_mapping_tname(tab))==0 \
-                    or (check_mysql_tab_exists(config,get_mapping_tname(tab))>0 and check_mysql_tab_sync(config,get_mapping_tname(tab))==0)):
-                #write init dict
-                config_init[tab] = True
+    config_init = {}
+    for i in config['sync_table'].split(","):
+        tab=i.split(':')[0]
+        config_init[tab] = False
+        if (check_mysql_tab_exists(config,get_mapping_tname(tab))==0 \
+                or (check_mysql_tab_exists(config,get_mapping_tname(tab))>0 and check_mysql_tab_sync(config,get_mapping_tname(tab))==0)):
+            #write init dict
+            config_init[tab] = True
 
-                #start first sync data
-                i_counter        = 0
-                start_time       = datetime.datetime.now()
-                n_tab_total_rows = get_sync_table_total_rows(config,tab,'')
-                ins_sql_header   = get_tab_header(config,tab)
-                v_tab_cols       = get_tab_columns(config,tab)
-                v_pk_name        = get_sync_table_pk_names(config,tab)
-                n_batch_size     = int(config['batch_size'])
-                db_source        = config['db_sqlserver']
-                cr_source        = db_source.cursor()
-                db_desc          = config['db_mysql']
-                cr_desc          = db_desc.cursor()
+            #start first sync data
+            i_counter        = 0
+            start_time       = datetime.datetime.now()
+            n_tab_total_rows = get_sync_table_total_rows(config,tab,'')
+            ins_sql_header   = get_tab_header(config,tab)
+            v_tab_cols       = get_tab_columns(config,tab)
+            v_pk_name        = get_sync_table_pk_names(config,tab)
+            n_batch_size     = int(config['batch_size'])
+            db_source        = config['db_sqlserver']
+            cr_source        = db_source.cursor()
+            db_desc          = config['db_mysql']
+            cr_desc          = db_desc.cursor()
 
-                print('delete table:{0} all data!'.format(get_mapping_tname(tab)))
-                cr_desc.execute('delete from {0}'.format(get_mapping_tname(tab)))
-                print('delete table:{0} all data ok!'.format(get_mapping_tname(tab)))
+            print('delete table:{0} all data!'.format(get_mapping_tname(tab)))
+            cr_desc.execute('delete from {0}'.format(get_mapping_tname(tab)))
+            print('delete table:{0} all data ok!'.format(get_mapping_tname(tab)))
 
-                v_sql            = "select {0} from {1} with(nolock)".format(v_tab_cols,tab)
-                cr_source.execute(v_sql)
-                rs_source = cr_source.fetchmany(n_batch_size)
-                while rs_source:
-                    batch_sql  = ""
-                    v_sql      = ''
-                    for i in range(len(rs_source)):
-                        rs_source_desc = cr_source.description
-                        ins_val = ""
-                        for j in range(len(rs_source[i])):
-                            col_type = str(rs_source_desc[j][1])
-                            if  rs_source[i][j] is None:
-                                ins_val = ins_val + "null,"
-                            elif col_type == "1":  #varchar,date
-                                ins_val = ins_val + "'"+format_sql(str(rs_source[i][j])) + "',"
-                            elif col_type == "5":  #int,decimal
-                                ins_val = ins_val + "'" + str(rs_source[i][j])+ "',"
-                            elif col_type == "4":  #datetime
-                                ins_val = ins_val + "'" + str(rs_source[i][j]).split('.')[0] + "',"
-                            elif col_type == "3":  # bit
-                                if str(rs_source[i][j]) == "True":  # bit
-                                    ins_val = ins_val + "'" + "1" + "',"
-                                elif str(rs_source[i][j]) == "False":  # bit
-                                    ins_val = ins_val + "'" + "0" + "',"
-                                else:  # bigint ,int
-                                    ins_val = ins_val + "'" + str(rs_source[i][j]) + "',"
-                            elif col_type == "2":  # timestamp
-                                ins_val = ins_val + "null,"
-                            else:
+            v_sql            = "select {0} from {1} with(nolock)".format(v_tab_cols,tab)
+            cr_source.execute(v_sql)
+            rs_source = cr_source.fetchmany(n_batch_size)
+            while rs_source:
+                batch_sql  = ""
+                v_sql      = ''
+                for i in range(len(rs_source)):
+                    rs_source_desc = cr_source.description
+                    ins_val = ""
+                    for j in range(len(rs_source[i])):
+                        col_type = str(rs_source_desc[j][1])
+                        if  rs_source[i][j] is None:
+                            ins_val = ins_val + "null,"
+                        elif col_type == "1":  #varchar,date
+                            ins_val = ins_val + "'"+format_sql(str(rs_source[i][j])) + "',"
+                        elif col_type == "5":  #int,decimal
+                            ins_val = ins_val + "'" + str(rs_source[i][j])+ "',"
+                        elif col_type == "4":  #datetime
+                            ins_val = ins_val + "'" + str(rs_source[i][j]).split('.')[0] + "',"
+                        elif col_type == "3":  # bit
+                            if str(rs_source[i][j]) == "True":  # bit
+                                ins_val = ins_val + "'" + "1" + "',"
+                            elif str(rs_source[i][j]) == "False":  # bit
+                                ins_val = ins_val + "'" + "0" + "',"
+                            else:  # bigint ,int
                                 ins_val = ins_val + "'" + str(rs_source[i][j]) + "',"
-                        v_sql = v_sql +'('+ins_val+config['sync_col_val']+'),'
-                    batch_sql = ins_sql_header + v_sql[0:-1]
+                        elif col_type == "2":  # timestamp
+                            ins_val = ins_val + "null,"
+                        else:
+                            ins_val = ins_val + "'" + str(rs_source[i][j]) + "',"
+                    v_sql = v_sql +'('+ins_val+config['sync_col_val']+'),'
+                batch_sql = ins_sql_header + v_sql[0:-1]
 
-                    # #noinspection PyBroadException
-                    # try:
-                    #   config['run_sql'] = convert(batch_sql)
-                    #   cr_desc.execute(batch_sql)
-                    #   #print(batch_sql)
-                    #   i_counter = i_counter +len(rs_source)
-                    # except:
-                    #   print(batch_sql)
-                    #   print(traceback.format_exc())
-                    #   sys.exit(0)
+                #noinspection PyBroadException
+                try:
+                  cr_desc.execute(batch_sql)
+                  #print(batch_sql)
+                  i_counter = i_counter +len(rs_source)
+                except:
+                  print(batch_sql)
+                  print(traceback.format_exc())
+                  sys.exit(0)
 
-                    config['run_sql'] = convert(batch_sql)
-                    cr_desc.execute(batch_sql)
-                    i_counter = i_counter +len(rs_source)
+                print("\rTime:{0},Table:{1},Total rec:{2},Process rec:{3},Complete:{4}%,elapsed time:{5}s"
+                      .format(get_time(),tab,n_tab_total_rows, i_counter,
+                              round(i_counter / n_tab_total_rows * 100,2),str(get_seconds(start_time))), end='')
 
-                    print("\rTime:{0},Table:{1},Total rec:{2},Process rec:{3},Complete:{4}%,elapsed time:{5}s"
-                          .format(get_time(),tab,n_tab_total_rows, i_counter,
-                                  round(i_counter / n_tab_total_rows * 100,2),str(get_seconds(start_time))), end='')
-
-                    if n_tab_total_rows == 0:
-                        print("Table:{0},Total rec:{1},Process rec:{2},Complete:{3}%".
-                              format(tab, n_tab_total_rows,round(i_counter / 1 * 100,2)))
-                    else:
-                        print("\rTable:{0},Total rec:{1},Process rec:{2},Complete:{3}%".
-                              format(tab, n_tab_total_rows,i_counter, round(i_counter / n_tab_total_rows * 100, 2)), end='')
-                    rs_source = cr_source.fetchmany(n_batch_size)
-                db_desc.commit()
-                print('')
-        return config_init
-    except Exception as e:
-        print('sync_sqlserver_init exceptiion:' + traceback.format_exc())
-        exception_running(config, traceback.format_exc())
-        exit(0)
-
+                if n_tab_total_rows == 0:
+                    print("Table:{0},Total rec:{1},Process rec:{2},Complete:{3}%".
+                          format(tab, n_tab_total_rows,round(i_counter / 1 * 100,2)))
+                else:
+                    print("\rTable:{0},Total rec:{1},Process rec:{2},Complete:{3}%".
+                          format(tab, n_tab_total_rows,i_counter, round(i_counter / n_tab_total_rows * 100, 2)), end='')
+                rs_source = cr_source.fetchmany(n_batch_size)
+            db_desc.commit()
+            print('')
+    return config_init
 
 def sync_sqlserver_init_full_tab(config,ftab):
     if check_full_sync(config, ftab.split(':')[0]):
@@ -1366,238 +1295,213 @@ def get_temp_table_cols(v_pk_names):
     return result[0:-1]
 
 def sync_sqlserver_data_pk(config,ftab,config_init):
-    try:
-        #start sync dml data
-        config['sync_amount'] = 0
-        if not check_full_sync(config, ftab.split(':')[0]) and not config_init[ftab.split(':')[0]]:
-            tab              = ftab.split(':')[0]
-            v_where          = get_sync_where_incr(ftab,config)
-            i_counter        = 0
-            n_tab_total_rows = get_sync_table_total_rows(config,tab,v_where)
-            ins_sql_header   = get_tab_header(config,tab)
-            v_pk_names       = get_sync_table_pk_names(config, tab)
-            v_pk_cols        = get_sync_table_pk_vals(config, tab)
-            n_batch_size     = int(config['batch_size_incr'])
-            db_source        = config['db_sqlserver']
-            db_source2       = config['db_sqlserver2']
-            cr_source        = db_source.cursor()
-            db_desc          = config['db_mysql']
-            cr_desc          = db_desc.cursor()
-            v_sql            = """select {0} as 'pk',{1} from {2} with(nolock) {3}
-                               """.format(v_pk_cols,get_tab_columns(config,tab), tab,v_where)
-            n_rows           = 0
-            cr_source.execute(v_sql)
-            rs_source        = cr_source.fetchmany(n_batch_size)
-            start_time       = datetime.datetime.now()
-            if ftab.split(':')[1]=='':
-                print("Sync Table increment :{0} ...".format(ftab.split(':')[0]))
-            else:
-                print("Sync Table increment :{0} for In recent {1} {2}...".format(ftab.split(':')[0], ftab.split(':')[2],config['sync_time_type']))
+    #start sync dml data
+    config['sync_amount'] = 0
+    if not check_full_sync(config, ftab.split(':')[0]) and not config_init[ftab.split(':')[0]]:
+        tab              = ftab.split(':')[0]
+        v_where          = get_sync_where_incr(ftab,config)
+        i_counter        = 0
+        n_tab_total_rows = get_sync_table_total_rows(config,tab,v_where)
+        ins_sql_header   = get_tab_header(config,tab)
+        v_pk_names       = get_sync_table_pk_names(config, tab)
+        v_pk_cols        = get_sync_table_pk_vals(config, tab)
+        n_batch_size     = int(config['batch_size_incr'])
+        db_source        = config['db_sqlserver']
+        db_source2       = config['db_sqlserver2']
+        cr_source        = db_source.cursor()
+        db_desc          = config['db_mysql']
+        cr_desc          = db_desc.cursor()
+        v_sql            = """select {0} as 'pk',{1} from {2} with(nolock) {3}
+                           """.format(v_pk_cols,get_tab_columns(config,tab), tab,v_where)
+        n_rows           = 0
+        cr_source.execute(v_sql)
+        rs_source        = cr_source.fetchmany(n_batch_size)
+        start_time       = datetime.datetime.now()
+        if ftab.split(':')[1]=='':
+            print("Sync Table increment :{0} ...".format(ftab.split(':')[0]))
+        else:
+            print("Sync Table increment :{0} for In recent {1} {2}...".format(ftab.split(':')[0], ftab.split(':')[2],config['sync_time_type']))
 
-            if ftab.split(':')[1] == '':
-                print('DB:{0},delete {1} table data please wait...'.format(config['db_mysql_string'], get_mapping_tname(tab)))
-                cr_desc.execute('delete from {0}'.format(get_mapping_tname(tab)))
-                print('DB:{0},delete {1} table data ok!'.format(config['db_mysql_string'], get_mapping_tname(tab)))
+        if ftab.split(':')[1] == '':
+            print('DB:{0},delete {1} table data please wait...'.format(config['db_mysql_string'], get_mapping_tname(tab)))
+            cr_desc.execute('delete from {0}'.format(get_mapping_tname(tab)))
+            print('DB:{0},delete {1} table data ok!'.format(config['db_mysql_string'], get_mapping_tname(tab)))
 
-            while rs_source:
-                batch_sql = ""
-                batch_sql_del = ""
-                v_sql = ''
-                v_sql_del = ''
-                n_rows=n_rows+len(rs_source)
-                print("\r{0},Scanning table:{1},{2}/{3} rows,elapsed time:{4}s...".format(get_time(),get_mapping_tname(tab),str(n_rows),str(n_tab_total_rows),str(get_seconds(start_time))),end='')
-                rs_source_desc = cr_source.description
-                if len(rs_source) > 0:
-                    for r in list(rs_source):
-                        ins_val = ""
-                        for j in range(1, len(r)):
-                            col_type = str(rs_source_desc[j][1])
-                            if r[j] is None:
-                                ins_val = ins_val + "null,"
-                            elif col_type == "1":  # varchar,date
-                                ins_val = ins_val + "'" + format_sql(str(r[j])) + "',"
-                            elif col_type == "5":  # int,decimal
+        while rs_source:
+            batch_sql = ""
+            batch_sql_del = ""
+            v_sql = ''
+            v_sql_del = ''
+            n_rows=n_rows+len(rs_source)
+            print("\r{0},Scanning table:{1},{2}/{3} rows,elapsed time:{4}s...".format(get_time(),get_mapping_tname(tab),str(n_rows),str(n_tab_total_rows),str(get_seconds(start_time))),end='')
+            rs_source_desc = cr_source.description
+            if len(rs_source) > 0:
+                for r in list(rs_source):
+                    ins_val = ""
+                    for j in range(1, len(r)):
+                        col_type = str(rs_source_desc[j][1])
+                        if r[j] is None:
+                            ins_val = ins_val + "null,"
+                        elif col_type == "1":  # varchar,date
+                            ins_val = ins_val + "'" + format_sql(str(r[j])) + "',"
+                        elif col_type == "5":  # int,decimal
+                            ins_val = ins_val + "'" + str(r[j]) + "',"
+                        elif col_type == "4":  # datetime
+                            ins_val = ins_val + "'" + str(r[j]).split('.')[0] + "',"
+                        elif col_type == "3":  # bit
+                            if str(r[j]) == "True":  # bit
+                                ins_val = ins_val + "'" + "1" + "',"
+                            elif str(r[j]) == "False":  # bit
+                                ins_val = ins_val + "'" + "0" + "',"
+                            else:  # bigint ,int
                                 ins_val = ins_val + "'" + str(r[j]) + "',"
-                            elif col_type == "4":  # datetime
-                                ins_val = ins_val + "'" + str(r[j]).split('.')[0] + "',"
-                            elif col_type == "3":  # bit
-                                if str(r[j]) == "True":  # bit
-                                    ins_val = ins_val + "'" + "1" + "',"
-                                elif str(r[j]) == "False":  # bit
-                                    ins_val = ins_val + "'" + "0" + "',"
-                                else:  # bigint ,int
-                                    ins_val = ins_val + "'" + str(r[j]) + "',"
-                            elif col_type == "2":  # timestamp
-                                ins_val = ins_val + "null,"
-                            else:
-                                ins_val = ins_val + "'" + format_sql(str(r[j])) + "',"
-                        ins_val = ins_val + config['sync_col_val']
-                        v_sql = v_sql + '(' + ins_val+ '),'
-                        v_sql_del = v_sql_del + get_sync_where(v_pk_names, r[0]) + ","
-                    batch_sql = ins_sql_header + v_sql[0:-1]
+                        elif col_type == "2":  # timestamp
+                            ins_val = ins_val + "null,"
+                        else:
+                            ins_val = ins_val + "'" + format_sql(str(r[j])) + "',"
+                    ins_val = ins_val + config['sync_col_val']
+                    v_sql = v_sql + '(' + ins_val+ '),'
+                    v_sql_del = v_sql_del + get_sync_where(v_pk_names, r[0]) + ","
+                batch_sql = ins_sql_header + v_sql[0:-1]
 
-                    #noinspection PyBroadException
-                    # try:
-                    #     for d in v_sql_del[0:-1].split(','):
-                    #         cr_desc.execute('delete from {0} where {1}'.format(get_mapping_tname(tab), d))
-                    #     #print('sync_sqlserver_data_pk=',batch_sql)
-                    #     cr_desc.execute(batch_sql)
-                    #     i_counter = i_counter + len(rs_source)
-                    # except:
-                    #     print('batch_sql=', batch_sql)
-                    #     print(traceback.format_exc())
-                    #     sys.exit(0)
-
+                #noinspection PyBroadException
+                try:
                     for d in v_sql_del[0:-1].split(','):
-                        config['run_sql'] = convert('delete from {0} where {1}'.format(get_mapping_tname(tab), d))
                         cr_desc.execute('delete from {0} where {1}'.format(get_mapping_tname(tab), d))
-                    config['run_sql'] = batch_sql
+                    #print('sync_sqlserver_data_pk=',batch_sql)
                     cr_desc.execute(batch_sql)
                     i_counter = i_counter + len(rs_source)
+                except:
+                    print('batch_sql=', batch_sql)
+                    print(traceback.format_exc())
+                    sys.exit(0)
 
+                print("\rTable:{0},Total rec:{1},Process rec:{2},Complete:{3}%,elapsed time:{4}s"
+                      .format(tab, n_tab_total_rows,
+                              i_counter, round(i_counter / n_tab_total_rows * 100, 2),
+                              str(get_seconds(start_time))),end='')
+                if n_tab_total_rows == 0:
                     print("\rTable:{0},Total rec:{1},Process rec:{2},Complete:{3}%,elapsed time:{4}s"
-                          .format(tab, n_tab_total_rows,
-                                  i_counter, round(i_counter / n_tab_total_rows * 100, 2),
-                                  str(get_seconds(start_time))),end='')
-                    if n_tab_total_rows == 0:
-                        print("\rTable:{0},Total rec:{1},Process rec:{2},Complete:{3}%,elapsed time:{4}s"
-                                  .format(tab, n_tab_total_rows, i_counter, round(i_counter / 1 * 100, 2),
-                                          str(get_seconds(start_time))),end='')
-                    else:
-                        print("\rTable:{0},Total rec:{1},Process rec:{2},Complete:{3}%,elapsed time:{4}s"
-                                  .format(tab, n_tab_total_rows, i_counter, round(i_counter / n_tab_total_rows * 100, 2),
-                                          str(get_seconds(start_time))),end='')
-                    rs_source = cr_source.fetchmany(n_batch_size)
-                print('')
+                              .format(tab, n_tab_total_rows, i_counter, round(i_counter / 1 * 100, 2),
+                                      str(get_seconds(start_time))),end='')
+                else:
+                    print("\rTable:{0},Total rec:{1},Process rec:{2},Complete:{3}%,elapsed time:{4}s"
+                              .format(tab, n_tab_total_rows, i_counter, round(i_counter / n_tab_total_rows * 100, 2),
+                                      str(get_seconds(start_time))),end='')
+                rs_source = cr_source.fetchmany(n_batch_size)
+            print('')
 
-            db_desc.commit()
+        db_desc.commit()
 
-            if config['run_mode'] == 'remote':
-                #write write_sync_log_detail
-                config['sync_duration']=str(get_seconds(start_time))
-                config['sync_table_inteface'] = tab
-                config['sync_amount'] = str(n_rows)
-                write_sync_log_detail(config)
-    except Exception as e:
-        print('sync_sqlserver_data_pk exceptiion:' + traceback.format_exc())
-        exception_running(config, traceback.format_exc())
-        exit(0)
-
+        if config['run_mode'] == 'remote':
+            #write write_sync_log_detail
+            config['sync_duration']=str(get_seconds(start_time))
+            config['sync_table_inteface'] = tab
+            config['sync_amount'] = str(n_rows)
+            write_sync_log_detail(config)
 
 def sync_sqlserver_data_nopk(config,ftab,config_init):
-    try:
-        config['sync_amount'] = 0
-        #start sync dml data
-        if  check_full_sync(config, ftab.split(':')[0]) and not config_init[ftab.split(':')[0]]:
-            tab              = ftab.split(':')[0]
-            v_where          = get_sync_where_incr(ftab,config)
-            v_where_mysql    = get_sync_where_incr_mysql(ftab,config)
-            i_counter        = 0
-            n_tab_total_rows = get_sync_table_total_rows(config,tab,v_where)
-            ins_sql_header   = get_tab_header(config,tab)
-            n_batch_size     = int(config['batch_size'])
-            db_source        = config['db_sqlserver']
-            cr_source        = db_source.cursor()
-            db_desc          = config['db_mysql']
-            cr_desc          = db_desc.cursor()
-            v_sql            = """select {0} from {1} with(nolock) {2}
-                               """.format(get_tab_columns(config,tab), tab,v_where)
-            n_rows           = 0
-            cr_source.execute(v_sql)
-            rs_source        = cr_source.fetchmany(n_batch_size)
-            start_time       = datetime.datetime.now()
+    config['sync_amount'] = 0
+    #start sync dml data
+    if  check_full_sync(config, ftab.split(':')[0]) and not config_init[ftab.split(':')[0]]:
+        tab              = ftab.split(':')[0]
+        v_where          = get_sync_where_incr(ftab,config)
+        v_where_mysql    = get_sync_where_incr_mysql(ftab,config)
+        i_counter        = 0
+        n_tab_total_rows = get_sync_table_total_rows(config,tab,v_where)
+        ins_sql_header   = get_tab_header(config,tab)
+        n_batch_size     = int(config['batch_size'])
+        db_source        = config['db_sqlserver']
+        cr_source        = db_source.cursor()
+        db_desc          = config['db_mysql']
+        cr_desc          = db_desc.cursor()
+        v_sql            = """select {0} from {1} with(nolock) {2}
+                           """.format(get_tab_columns(config,tab), tab,v_where)
+        n_rows           = 0
+        cr_source.execute(v_sql)
+        rs_source        = cr_source.fetchmany(n_batch_size)
+        start_time       = datetime.datetime.now()
+        if ftab.split(':')[1]=='':
+            print("Sync Table increment :{0} ...".format(ftab.split(':')[0]))
+        else:
+            print("Sync Table increment :{0} for In recent {1} {2}...".format(ftab.split(':')[0], ftab.split(':')[2],config['sync_time_type']))
 
-            if ftab.split(':')[1]=='':
-                print("Sync Table increment :{0} ...".format(ftab.split(':')[0]))
-            else:
-                print("Sync Table increment :{0} for In recent {1} {2}...".format(ftab.split(':')[0], ftab.split(':')[2],config['sync_time_type']))
+        if ftab.split(':')[1] == '':
+            print('DB:{0},delete {1} table data,please wait...'.format(config['db_mysql_string'], get_mapping_tname(tab)))
+            cr_desc.execute('delete from {0}'.format(get_mapping_tname(tab)))
+            print('DB:{0},delete {1} table data ok!'.format(config['db_mysql_string'], get_mapping_tname(tab)))
+        else:
+            print('DB:{0},delete {1} table recent {2} {3} data please wait...'.format(config['db_mysql_string'], tab,ftab.split(':')[2],config['sync_time_type']))
+            cr_desc.execute('delete from {0} {1} '.format(get_mapping_tname(tab), v_where_mysql))
+            print('DB:{0},delete {1} table recent {2} {3} data ok!'.format(config['db_mysql_string'], tab,ftab.split(':')[2],config['sync_time_type']))
 
-            if ftab.split(':')[1] == '':
-                print('DB:{0},delete {1} table data,please wait...'.format(config['db_mysql_string'], get_mapping_tname(tab)))
-                config['run_sql'] = 'delete from {0}'.format(get_mapping_tname(tab))
-                cr_desc.execute('delete from {0}'.format(get_mapping_tname(tab)))
-                print('DB:{0},delete {1} table data ok!'.format(config['db_mysql_string'], get_mapping_tname(tab)))
-            else:
-                print('DB:{0},delete {1} table recent {2} {3} data please wait...'.format(config['db_mysql_string'], tab,ftab.split(':')[2],config['sync_time_type']))
-                config['run_sql'] = 'delete from {0} {1} '.format(get_mapping_tname(tab), v_where_mysql)
-                cr_desc.execute('delete from {0} {1} '.format(get_mapping_tname(tab), v_where_mysql))
-                print('DB:{0},delete {1} table recent {2} {3} data ok!'.format(config['db_mysql_string'], tab,ftab.split(':')[2],config['sync_time_type']))
-
-            while rs_source:
-                batch_sql = ''
-                v_sql = ''
-                n_rows=n_rows+len(rs_source)
-                print("\r{0},Scanning table:{1},{2}/{3} rows,elapsed time:{4}s..."
-                      .format(get_time(),get_mapping_tname(tab),str(n_rows),str(n_tab_total_rows),
-                              str(get_seconds(start_time))),end='')
-                rs_source_desc = cr_source.description
-                if len(rs_source) > 0:
-                    for r in list(rs_source):
-                        ins_val = ""
-                        for j in range(len(r)):
-                            col_type = str(rs_source_desc[j][1])
-                            if r[j] is None:
-                                ins_val = ins_val + "null,"
-                            elif col_type == "1":  # varchar,date
-                                ins_val = ins_val + "'" + format_sql(str(r[j])) + "',"
-                            elif col_type == "5":  # int,decimal
+        while rs_source:
+            batch_sql = ''
+            v_sql = ''
+            n_rows=n_rows+len(rs_source)
+            print("\r{0},Scanning table:{1},{2}/{3} rows,elapsed time:{4}s..."
+                  .format(get_time(),get_mapping_tname(tab),str(n_rows),str(n_tab_total_rows),
+                          str(get_seconds(start_time))),end='')
+            rs_source_desc = cr_source.description
+            if len(rs_source) > 0:
+                for r in list(rs_source):
+                    ins_val = ""
+                    for j in range(len(r)):
+                        col_type = str(rs_source_desc[j][1])
+                        if r[j] is None:
+                            ins_val = ins_val + "null,"
+                        elif col_type == "1":  # varchar,date
+                            ins_val = ins_val + "'" + format_sql(str(r[j])) + "',"
+                        elif col_type == "5":  # int,decimal
+                            ins_val = ins_val + "'" + str(r[j]) + "',"
+                        elif col_type == "4":  # datetime
+                            ins_val = ins_val + "'" + str(r[j]).split('.')[0] + "',"
+                        elif col_type == "3":  # bit
+                            if str(r[j]) == "True":  # bit
+                                ins_val = ins_val + "'" + "1" + "',"
+                            elif str(r[j]) == "False":  # bit
+                                ins_val = ins_val + "'" + "0" + "',"
+                            else:  # bigint ,int
                                 ins_val = ins_val + "'" + str(r[j]) + "',"
-                            elif col_type == "4":  # datetime
-                                ins_val = ins_val + "'" + str(r[j]).split('.')[0] + "',"
-                            elif col_type == "3":  # bit
-                                if str(r[j]) == "True":  # bit
-                                    ins_val = ins_val + "'" + "1" + "',"
-                                elif str(r[j]) == "False":  # bit
-                                    ins_val = ins_val + "'" + "0" + "',"
-                                else:  # bigint ,int
-                                    ins_val = ins_val + "'" + str(r[j]) + "',"
-                            elif col_type == "2":  # timestamp
-                                ins_val = ins_val + "null,"
-                            else:
-                                ins_val = ins_val + "'" + format_sql(str(r[j])) + "',"
-                        ins_val = ins_val + config['sync_col_val']
-                        v_sql = v_sql + '(' + ins_val + '),'
-                    batch_sql = ins_sql_header + v_sql[0:-1]
+                        elif col_type == "2":  # timestamp
+                            ins_val = ins_val + "null,"
+                        else:
+                            ins_val = ins_val + "'" + format_sql(str(r[j])) + "',"
+                    ins_val = ins_val + config['sync_col_val']
+                    v_sql = v_sql + '(' + ins_val + '),'
+                batch_sql = ins_sql_header + v_sql[0:-1]
 
-                    #noinspection PyBroadException
-                    # try:
-                    #     cr_desc.execute(batch_sql)
-                    #     #print('sync_sqlserver_data_nopk=', batch_sql)
-                    #     i_counter = i_counter + len(rs_source)
-                    # except:
-                    #     print('batch_sql=', batch_sql)
-                    #     print(traceback.format_exc())
-                    #     sys.exit(0)
-
-                    config['run_sql'] = batch_sql
+                #noinspection PyBroadException
+                try:
                     cr_desc.execute(batch_sql)
+                    #print('sync_sqlserver_data_nopk=', batch_sql)
                     i_counter = i_counter + len(rs_source)
+                except:
+                    print('batch_sql=', batch_sql)
+                    print(traceback.format_exc())
+                    sys.exit(0)
 
-
+                print("\rTable:{0},Total rec:{1},Process rec:{2},Complete:{3}%,elapsed time:{4}s"
+                      .format(tab, n_tab_total_rows, i_counter, round(i_counter / n_tab_total_rows * 100, 2),
+                              str(get_seconds(start_time))),end='')
+                if n_tab_total_rows == 0:
+                    print("\rTable:{0},Total rec:{1},Process rec:{2},Complete:{3}%,elapsed time:{4}s"
+                           .format(tab, n_tab_total_rows, i_counter, round(i_counter / 1 * 100, 2),
+                                   str(get_seconds(start_time))),end='')
+                else:
                     print("\rTable:{0},Total rec:{1},Process rec:{2},Complete:{3}%,elapsed time:{4}s"
                           .format(tab, n_tab_total_rows, i_counter, round(i_counter / n_tab_total_rows * 100, 2),
                                   str(get_seconds(start_time))),end='')
-                    if n_tab_total_rows == 0:
-                        print("\rTable:{0},Total rec:{1},Process rec:{2},Complete:{3}%,elapsed time:{4}s"
-                               .format(tab, n_tab_total_rows, i_counter, round(i_counter / 1 * 100, 2),
-                                       str(get_seconds(start_time))),end='')
-                    else:
-                        print("\rTable:{0},Total rec:{1},Process rec:{2},Complete:{3}%,elapsed time:{4}s"
-                              .format(tab, n_tab_total_rows, i_counter, round(i_counter / n_tab_total_rows * 100, 2),
-                                      str(get_seconds(start_time))),end='')
-                    rs_source = cr_source.fetchmany(n_batch_size)
-            print('')
-            db_desc.commit()
+                rs_source = cr_source.fetchmany(n_batch_size)
+        print('')
+        db_desc.commit()
 
-            if config['run_mode'] == 'remote':
-               config['sync_duration'] = str(get_seconds(start_time))
-               config['sync_table_inteface'] = tab
-               config['sync_amount'] = str(n_rows)
-               write_sync_log_detail(config)
-    except Exception as e :
-        print('sync_sqlserver_data_nopk exceptiion:' + traceback.format_exc())
-        exception_running(config, traceback.format_exc())
-        exit(0)
+        if config['run_mode'] == 'remote':
+            #write write_sync_log_detail
+            config['sync_duration'] = str(get_seconds(start_time))
+            config['sync_table_inteface'] = tab
+            config['sync_amount'] = str(n_rows)
+            write_sync_log_detail(config)
 
 def sync_sqlserver_data(config,config_init):
     start_time = datetime.datetime.now()
@@ -1617,7 +1521,15 @@ def sync_sqlserver_data(config,config_init):
        config['sync_amount']   = str(amount)
        config['sync_duration'] = str(get_seconds(start_time))
        write_sync_log(config)
-
+    else:
+       print('send mail warning....')
+       send_mail25('190343@lifeat.cn',
+                 'Hhc5HBtAuYTPGHQ8',
+                 '190343@lifeat.cn',
+                 '数据同步接口服务器异常',
+'''接口服务器:$$API_SERVER$$ 不可用!
+同步标识符:{0}
+同步任务运行于本地配置文件模式中，请尽快处理!!!'''.format(config['sync_tag']))
 
 def cleaning_table(config):
     print('starting cleaning_table please wait...')
@@ -1702,134 +1614,6 @@ def write_local_config_file(config):
     file_handle.close()
     print("{0} export complete!".format(file_name))
 
-def exception_connect_db(config,p_error):
-    v_templete = '''
-        <html>
-           <head>
-              <style type="text/css">
-                  .xwtable {width: 100%;border-collapse: collapse;border: 1px solid #ccc;}
-                  .xwtable thead td {font-size: 12px;color: #333333;
-                                     text-align: center;background: url(table_top.jpg) repeat-x top center;
-                                     border: 1px solid #ccc; font-weight:bold;}
-                  .xwtable thead th {font-size: 12px;color: #333333;
-                                     text-align: center;background: url(table_top.jpg) repeat-x top center;
-                                     border: 1px solid #ccc; font-weight:bold;}
-                  .xwtable tbody tr {background: #fff;font-size: 12px;color: #666666;}
-                  .xwtable tbody tr.alt-row {background: #f2f7fc;}
-                  .xwtable td{line-height:20px;text-align: left;padding:4px 10px 3px 10px;height: 18px;border: 1px solid #ccc;}
-              </style>
-           </head>
-           <body>             
-              <table class='xwtable'>
-                  <tr><td  width="30%">任务描述</td><td  width="70%">$$task_desc$$</td></tr>
-                  <tr><td>任务标识</td><td>$$sync_tag$$</td></tr>                 
-                  <tr><td>业务类型</td><td>$$sync_ywlx$$</td></tr>
-                  <tr><td>同步方向</td><td>$$sync_type$$</td></tr>
-                  <tr><td>同步服务器</td><td>$$server_id$$</td></tr>
-                  <tr><td>源数据源</td><td>$$sync_db_sour$$</td></tr>
-                  <tr><td>目标数据源</td><td>$$sync_db_dest$$</td></tr>
-                  <tr><td>同步表名</td><td>$$sync_table$$</td></tr>
-                  <tr><td>时间类型</td><td>$$sync_time_type$$</td></tr>
-                  <tr><td>同步脚本</td><td>$$script_file$$</td></tr>
-                  <tr><td>运行时间</td><td>$$run_time$$</td></tr>                
-                  <tr><td>异常信息</td><td>$$run_error$$</td></tr>
-              </table>                
-           </body>
-        </html>
-       '''
-    v_title  = '数据同步数据库异常[★★★]'
-    v_content = v_templete.replace('$$task_desc$$', config.get('comments'))
-    v_content = v_content.replace('$$sync_tag$$',   config.get('sync_tag'))
-    v_content = v_content.replace('$$sync_ywlx$$' , config.get('sync_ywlx_name'))
-    v_content = v_content.replace('$$sync_type$$' , config.get('sync_type_name'))
-    v_content = v_content.replace('$$server_id$$', str(config.get('server_desc')))
-    v_content = v_content.replace('$$sync_db_sour$$', config.get('sync_db_sour'))
-    v_content = v_content.replace('$$sync_db_dest$$', config.get('sync_db_dest'))
-    v_content = v_content.replace('$$sync_table$$', config.get('sync_table'))
-    v_content = v_content.replace('$$sync_time_type$$', config.get('sync_time_type_name'))
-    v_content = v_content.replace('$$script_file$$', config.get('script_file'))
-    v_content = v_content.replace('$$run_time$$', config.get('run_time'))
-    v_content = v_content.replace('$$run_error$$', str(p_error))
-    send_mail25('190343@lifeat.cn','Hhc5HBtAuYTPGHQ8','190343@lifeat.cn', v_title,v_content)
-
-def exception_interface(v_title,v_content):
-    v_templete = '''
-           <html>
-              <head>
-                 <style type="text/css">
-                     .xwtable {width: 100%;border-collapse: collapse;border: 1px solid #ccc;}
-                     .xwtable thead td {font-size: 12px;color: #333333;
-                                        text-align: center;background: url(table_top.jpg) repeat-x top center;
-                                        border: 1px solid #ccc; font-weight:bold;}
-                     .xwtable thead th {font-size: 12px;color: #333333;
-                                        text-align: center;background: url(table_top.jpg) repeat-x top center;
-                                        border: 1px solid #ccc; font-weight:bold;}
-                     .xwtable tbody tr {background: #fff;font-size: 12px;color: #666666;}
-                     .xwtable tbody tr.alt-row {background: #f2f7fc;}
-                     .xwtable td{line-height:20px;text-align: left;padding:4px 10px 3px 10px;height: 18px;border: 1px solid #ccc;}
-                 </style>
-              </head>
-              <body>             
-                 $$TABLE$$           
-              </body>
-           </html>
-          '''
-    v_templete = v_templete.replace('$$TABLE$$',v_content)
-    send_mail25('190343@lifeat.cn','Hhc5HBtAuYTPGHQ8','190343@lifeat.cn', v_title,v_templete)
-
-def exception_running(config,p_error):
-    v_templete = '''
-     <html>
-        <head>
-           <style type="text/css">
-               .xwtable {width: 100%;border-collapse: collapse;border: 1px solid #ccc;}
-               .xwtable thead td {font-size: 12px;color: #333333;
-                                  text-align: center;background: url(table_top.jpg) repeat-x top center;
-                                  border: 1px solid #ccc; font-weight:bold;}
-               .xwtable thead th {font-size: 12px;color: #333333;
-                                  text-align: center;background: url(table_top.jpg) repeat-x top center;
-                                  border: 1px solid #ccc; font-weight:bold;}
-               .xwtable tbody tr {background: #fff;font-size: 12px;color: #666666;}
-               .xwtable tbody tr.alt-row {background: #f2f7fc;}
-               .xwtable td{line-height:20px;text-align: left;padding:4px 10px 3px 10px;height: 18px;border: 1px solid #ccc;}
-           </style>
-        </head>
-        <body>             
-           <table class='xwtable'>
-               <tr><td  width="30%">任务描述</td><td  width="70%">$$task_desc$$</td></tr>
-               <tr><td>任务标识</td><td>$$sync_tag$$</td></tr>
-               <tr><td>业务类型</td><td>$$sync_ywlx$$</td></tr>
-               <tr><td>同步方向</td><td>$$sync_type$$</td></tr>
-               <tr><td>同步服务器</td><td>$$server_id$$</td></tr>
-               <tr><td>源数据源</td><td>$$sync_db_sour$$</td></tr>
-               <tr><td>目标数据源</td><td>$$sync_db_dest$$</td></tr>
-               <tr><td>同步表名</td><td>$$sync_table$$</td></tr>
-               <tr><td>时间类型</td><td>$$sync_time_type$$</td></tr>
-               <tr><td>同步脚本</td><td>$$script_file$$</td></tr>
-               <tr><td>运行时间</td><td>$$run_time$$</td></tr>
-               <tr><td>运行语句</td><td>$$run_sql$$</td></tr>
-               <tr><td>异常信息</td><td>$$run_error$$</td></tr>
-           </table>                
-        </body>
-     </html>
-    '''
-
-    v_title   = '数据同步运行异常[★★★]'
-    v_content = v_templete.replace('$$task_desc$$'    ,config.get('comments'))
-    v_content = v_content.replace('$$sync_tag$$'      ,config.get('sync_tag'))
-    v_content = v_content.replace('$$sync_ywlx$$'     ,config.get('sync_ywlx_name'))
-    v_content = v_content.replace('$$sync_type$$'     ,config.get('sync_type_name'))
-    v_content = v_content.replace('$$server_id$$'     ,str(config.get('server_desc')))
-    v_content = v_content.replace('$$sync_db_sour$$'  ,config.get('sync_db_sour'))
-    v_content = v_content.replace('$$sync_db_dest$$'  ,config.get('sync_db_dest'))
-    v_content = v_content.replace('$$sync_table$$'    ,config.get('sync_table'))
-    v_content = v_content.replace('$$sync_time_type$$',config.get('sync_time_type_name'))
-    v_content = v_content.replace('$$script_file$$'  , config.get('script_file'))
-    v_content = v_content.replace('$$run_time$$'      ,config.get('run_time'))
-    v_content = v_content.replace('$$run_sql$$'       ,config.get('run_sql'))
-    v_content = v_content.replace('$$run_error$$'     ,str(p_error))
-
-    send_mail25('190343@lifeat.cn','Hhc5HBtAuYTPGHQ8','190343@lifeat.cn', v_title,v_content)
 
 def sync(config,debug,workdir):
     #init dict
