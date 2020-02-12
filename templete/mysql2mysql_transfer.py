@@ -495,17 +495,20 @@ def transfer_mysql_init(config,debug):
                 start_time       = datetime.datetime.now()
                 start_time_v     = get_time()
 
-                if check_mysql_tab_sync(config,tab) > 0:
-                    print('truncate table:{0} all data!'.format(tab))
-                    cr_desc.execute('truncate table {0}'.format(tab))
-                    print('truncate table:{0} all data ok!'.format(tab))
-
                 if config['sour_where'] =='' :
                     print("Transfer table:'{0}' for full...".format(tab))
+                    if check_mysql_tab_sync(config, tab) > 0:
+                        print('truncate table:{0} all data!'.format(tab))
+                        cr_desc.execute('truncate table {0}'.format(tab))
+                        print('truncate table:{0} all data ok!'.format(tab))
+
                     n_tab_total_rows = get_sync_table_total_rows(db_source, tab, '')
                     v_sql            = "select * from {0}".format(tab)
                 else:
                     print("Transfer table:'{0}' for conditioin...".format(tab))
+                    print('delete table:{0} {1}!'.format(tab,config['sour_where']))
+                    cr_desc.execute('delete from {0} {1}'.format(tab,config['sour_where']))
+                    print('deletetable:{0} {1} data ok!'.format(tab,config['sour_where']))
                     n_tab_total_rows = get_sync_table_total_rows(db_source, tab, config['sour_where'])
                     v_sql = "select * from {0} {1}".format(tab,config['sour_where'])
 
@@ -603,9 +606,9 @@ def exception_connect_db(config,p_error):
            </body>
         </html>
        '''
-    v_title  = '数据同步数据库异常[★★★]'
+    v_title   = '数据同步数据库异常[★★★]'
     v_content = v_templete.replace('$$task_desc$$', config.get('comments'))
-    v_content = v_content.replace('$$sync_tag$$'  , config.get('sync_tag'))
+    v_content = v_content.replace('$$transfer_tag$$' , config.get('transfer_tag'))
     v_content = v_content.replace('$$server_desc$$', str(config.get('server_desc')))
     v_content = v_content.replace('$$transfer_db_sour$$', config.get('transfer_db_sour'))
     v_content = v_content.replace('$$transfer_db_dest$$', config.get('transfer_db_dest'))
@@ -674,8 +677,8 @@ def exception_running(config,p_error):
     v_content = v_templete.replace('$$task_desc$$'    ,config.get('comments'))
     v_content = v_content.replace('$$transfer_tag$$'  ,config.get('transfer_tag'))
     v_content = v_content.replace('$$server_desc$$'   ,str(config.get('server_desc')))
-    v_content = v_content.replace('$$sync_db_sour$$'  ,config.get('transfer_db_sour'))
-    v_content = v_content.replace('$$sync_db_dest$$'  ,config.get('transfer_db_dest'))
+    v_content = v_content.replace('$$transfer_db_sour$$'  ,config.get('transfer_db_sour'))
+    v_content = v_content.replace('$$transfer_db_dest$$'  ,config.get('transfer_db_dest'))
     v_content = v_content.replace('$$sour_table$$'    ,config.get('sour_table'))
     v_content = v_content.replace('$$script_file$$'  , config.get('script_file'))
     v_content = v_content.replace('$$run_error$$'     ,str(p_error))

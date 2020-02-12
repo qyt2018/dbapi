@@ -102,7 +102,7 @@ def aes_decrypt(p_password,p_key):
 def get_config_from_db(tag):
     values = {'tag': tag }
     print('values=', values)
-    url = 'http://$$API_SERVER$$/read_config_sync'
+    url = 'http://$$API_SERVER$$/read_config_transfer'
     context = ssl._create_unverified_context()
     data = urllib.parse.urlencode(values).encode(encoding='UTF-8')
     print('data=', data)
@@ -114,16 +114,16 @@ def get_config_from_db(tag):
         print('接口调用成功!')
         try:
             config = res['msg']
-            db_sour_ip                     = config['sync_db_sour'].split(':')[0]
-            db_sour_port                   = config['sync_db_sour'].split(':')[1]
-            db_sour_service                = config['sync_db_sour'].split(':')[2]
-            db_sour_user                   = config['sync_db_sour'].split(':')[3]
-            db_sour_pass                   = aes_decrypt(config['sync_db_sour'].split(':')[4],db_sour_user)
-            db_dest_ip                     = config['sync_db_dest'].split(':')[0]
-            db_dest_port                   = config['sync_db_dest'].split(':')[1]
-            db_dest_service                = config['sync_db_dest'].split(':')[2]
-            db_dest_user                   = config['sync_db_dest'].split(':')[3]
-            db_dest_pass                   = aes_decrypt(config['sync_db_dest'].split(':')[4],db_dest_user)
+            db_sour_ip                     = config['transfer_db_sour'].split(':')[0]
+            db_sour_port                   = config['transfer_db_sour'].split(':')[1]
+            db_sour_service                = config['transfer_db_sour'].split(':')[2]
+            db_sour_user                   = config['transfer_db_sour'].split(':')[3]
+            db_sour_pass                   = aes_decrypt(config['transfer_db_sour'].split(':')[4],db_sour_user)
+            db_dest_ip                     = config['transfer_db_dest'].split(':')[0]
+            db_dest_port                   = config['transfer_db_dest'].split(':')[1]
+            db_dest_service                = config['transfer_db_dest'].split(':')[2]
+            db_dest_user                   = config['transfer_db_dest'].split(':')[3]
+            db_dest_pass                   = aes_decrypt(config['transfer_db_dest'].split(':')[4],db_dest_user)
             config['db_sqlserver_ip']      = db_sour_ip
             config['db_sqlserver_port']    = db_sour_port
             config['db_sqlserver_service'] = db_sour_service
@@ -160,27 +160,25 @@ def get_config_from_db(tag):
 
 def write_transfer_log(config):
     v_tag = {
+        'table_name'      : config['table_name'],
         'transfer_tag'    : config['transfer_tag'],
-        'create_date'     : get_time(),
-        'duration'        : config['transfer_duration'],
-        'amount'          : config['transfer_amount'],
-        'percent'         : config['transfer_percent']
+        'create_date'     : config['create_date'],
+        'duration'        : config['duration'],
+        'amount'          : config['amount'],
+        'percent'         : config['percent']
     }
     v_msg = json.dumps(v_tag)
     values = {
         'tag': v_msg
     }
-    print(values)
     url = 'http://$$API_SERVER$$/write_transfer_log'
     context = ssl._create_unverified_context()
-    data    = urllib.parse.urlencode(values).encode(encoding='UTF-8')
-    req     = urllib.request.Request(url, data=data)
-    res     = urllib.request.urlopen(req, context=context)
-    res     = json.loads(res.read())
+    data = urllib.parse.urlencode(values).encode(encoding='UTF-8')
+    req = urllib.request.Request(url, data=data)
+    res = urllib.request.urlopen(req, context=context)
+    res = json.loads(res.read())
     print(res, res['code'])
-    if res['code'] == 200:
-        print('Interface write_sync_log call successful!')
-    else:
+    if res['code'] != 200:
         print('Interface write_sync_log call failed!')
 
 
@@ -289,7 +287,7 @@ def format_sql(v_sql):
     return v_sql.replace("\\","\\\\").replace("'","\\'")
 
 def get_tab_columns(config,tab):
-    cr=config['db_sqlserver3'].cursor()
+    cr=config['db_sqlserver'].cursor()
     sql="""select col.name
            from syscolumns col, sysobjects obj
            where col.id=obj.id 
@@ -309,7 +307,7 @@ def get_tab_columns(config,tab):
     return s1[0:-1]
 
 def get_tab_columns_incr(config,tab):
-    cr=config['db_sqlserver3'].cursor()
+    cr=config['db_sqlserver'].cursor()
     sql="""select col.name
            from syscolumns col, sysobjects obj
            where col.id=obj.id 
@@ -340,8 +338,7 @@ def get_tab_header(config,tab):
     '''for i in range(len(desc)):
       s1=s1+desc[i][0].lower()+','
     '''
-    s1=s1+get_sync_table_cols(config,tab)+','+config['sync_col_name']+")"
-    #s1=s1+config['sync_col_name']+")"
+    s1=s1+get_sync_table_cols(config,tab)+")"
     cr.close()
     return s1+s2
 
@@ -470,7 +467,7 @@ def sync_sqlserver_ddl(config,debug):
         cr_source = db_source.cursor()
         db_desc   = config['db_mysql']
         cr_desc   = db_desc.cursor()
-        for i in config['sync_table'].split(","):
+        for i in config['sour_table'].split(","):
             tab=i.split(':')[0]
             cr_source.execute("""select id,
                                         OBJECT_SCHEMA_NAME(id) as schema_name, 
@@ -494,8 +491,6 @@ def sync_sqlserver_ddl(config,debug):
                    else:
                        cr_desc.execute(convert(v_cre_sql))
                        print("Table:{0} creating success!".format(get_mapping_tname(full_tab_name)))
-                       cr_desc.execute('alter table {0} add {1} int'.format(get_mapping_tname(full_tab_name), config['sync_col_name']))
-                       print("Table:{0} add column {1} success!".format(get_mapping_tname(full_tab_name),config['sync_col_name']))
                        v_pk_sql="""ALTER TABLE {0} ADD COLUMN pkid INT(11) NOT NULL AUTO_INCREMENT FIRST, ADD PRIMARY KEY (pkid)
                                 """.format(get_mapping_tname(full_tab_name))
                        print("Table:{0} add primary key pkid success!".format(get_mapping_tname(full_tab_name)))
@@ -522,8 +517,6 @@ def sync_sqlserver_ddl(config,debug):
                       print("Table:{0} creating success!".format(get_mapping_tname(full_tab_name)))
                       cr_desc.execute('alter table {0} add primary key ({1})'.format(get_mapping_tname(full_tab_name),get_sync_table_pk_names(config, full_tab_name)))
                       print("Table:{0} add primary key {1} success!".format(get_mapping_tname(full_tab_name),get_sync_table_pk_names(config, full_tab_name)))
-                      cr_desc.execute('alter table {0} add {1} int'.format(get_mapping_tname(full_tab_name),config['sync_col_name']))
-                      print("Table:{0} add column {1} success!".format(get_mapping_tname(full_tab_name),config['sync_col_name']))
                       db_desc.commit()
                       #create mysql table comments
                       if check_sync_sqlserver_tab_comments(config,tab)>0:
@@ -730,17 +723,10 @@ def get_sync_where_incr_mysql_rq(tab,config,currq):
 def sync_sqlserver_init(config,debug):
     try:
         config_init = {}
-        for i in config['sync_table'].split(","):
+        for i in config['sour_table'].split(","):
             tab=i.split(':')[0]
-            config_init[tab] = False
-            if (check_mysql_tab_exists(config,get_mapping_tname(tab))==0 \
-                    or (check_mysql_tab_exists(config,get_mapping_tname(tab))>0 and check_mysql_tab_sync(config,get_mapping_tname(tab))==0)):
-                #write init dict
-                config_init[tab] = True
-
-                #start first sync data
+            if check_mysql_tab_exists(config,get_mapping_tname(tab))==0  or check_mysql_tab_exists(config,get_mapping_tname(tab))>0:
                 i_counter        = 0
-                start_time       = datetime.datetime.now()
                 n_tab_total_rows = get_sync_table_total_rows(config,tab,'')
                 ins_sql_header   = get_tab_header(config,tab)
                 v_tab_cols       = get_tab_columns(config,tab)
@@ -750,12 +736,25 @@ def sync_sqlserver_init(config,debug):
                 cr_source        = db_source.cursor()
                 db_desc          = config['db_mysql']
                 cr_desc          = db_desc.cursor()
+                start_time       = datetime.datetime.now()
+                start_time_v     = get_time()
 
-                print('delete table:{0} all data!'.format(get_mapping_tname(tab)))
-                cr_desc.execute('delete from {0}'.format(get_mapping_tname(tab)))
-                print('delete table:{0} all data ok!'.format(get_mapping_tname(tab)))
+                if check_mysql_tab_sync(config, get_mapping_tname(tab)) > 0:
+                    print('truncate table:{0} all data!'.format(get_mapping_tname(tab)))
+                    cr_desc.execute('delete from {0}'.format(get_mapping_tname(tab)))
+                    print('truncate table:{0} all data ok!'.format(get_mapping_tname(tab)))
 
-                v_sql            = "select {0} from {1} with(nolock)".format(v_tab_cols,tab)
+                if config['sour_where'] == '':
+                    print("Transfer table:'{0}' for full...".format(tab))
+                    n_tab_total_rows = get_sync_table_total_rows(config, tab, '')
+                    v_sql = "select {0} from {1} with(nolock)".format(v_tab_cols, tab)
+                else:
+                    print("Transfer table:'{0}' for conditioin...".format(tab))
+                    n_tab_total_rows = get_sync_table_total_rows(config, tab, config['sour_where'])
+                    v_sql = "select {0} from {1} with(nolock) {2}".format(v_tab_cols, tab,config['sour_where'])
+
+                print('Execute Query:{0},Total rows:{1}'.format(v_sql, n_tab_total_rows))
+
                 cr_source.execute(v_sql)
                 rs_source = cr_source.fetchmany(n_batch_size)
                 while rs_source:
@@ -785,11 +784,31 @@ def sync_sqlserver_init(config,debug):
                                 ins_val = ins_val + "null,"
                             else:
                                 ins_val = ins_val + "'" + str(rs_source[i][j]) + "',"
-                        v_sql = v_sql +'('+ins_val+config['sync_col_val']+'),'
+                        v_sql = v_sql +'('+ins_val[0:-1]+'),'
                     batch_sql = ins_sql_header + v_sql[0:-1]
 
                     cr_desc.execute(batch_sql)
+                    db_desc.commit()
                     i_counter = i_counter +len(rs_source)
+
+                    if n_tab_total_rows == 0:
+                        print("\rTable:{0},Total rec:{1},Process rec:{2},Complete:{3}%".
+                              format(tab, n_tab_total_rows,i_counter,round(i_counter / 1 * 100,2)), end='')
+                        config['table_name']  = tab
+                        config['create_date'] = start_time_v
+                        config['duration']    = str(get_seconds(start_time))
+                        config['amount']      = str(i_counter)
+                        config['percent']     = str(round(i_counter / 1 * 100,2))
+                        write_transfer_log(config)
+                    else:
+                        print("\rTable:{0},Total rec:{1},Process rec:{2},Complete:{3}%".
+                              format(tab, n_tab_total_rows,i_counter, round(i_counter / n_tab_total_rows * 100, 2)), end='')
+                        config['table_name']  = tab
+                        config['create_date'] = start_time_v
+                        config['duration']    = str(get_seconds(start_time))
+                        config['amount']      = str(i_counter)
+                        config['percent']     = str(round(i_counter / n_tab_total_rows * 100, 2))
+                        write_transfer_log(config)
 
                     print("\rTime:{0},Table:{1},Total rec:{2},Process rec:{3},Complete:{4}%,elapsed time:{5}s"
                           .format(get_time(),tab,n_tab_total_rows, i_counter,
@@ -804,7 +823,6 @@ def sync_sqlserver_init(config,debug):
                     rs_source = cr_source.fetchmany(n_batch_size)
                 db_desc.commit()
                 print('')
-        return config_init
     except Exception as e:
         print('sync_sqlserver_init exceptiion:' + traceback.format_exc())
         exception_running(config, traceback.format_exc())
@@ -859,16 +877,12 @@ def exception_connect_db(config,p_error):
            <body>             
               <table class='xwtable'>
                   <tr><td  width="30%">任务描述</td><td  width="70%">$$task_desc$$</td></tr>
-                  <tr><td>任务标识</td><td>$$sync_tag$$</td></tr>                 
-                  <tr><td>业务类型</td><td>$$sync_ywlx$$</td></tr>
-                  <tr><td>同步方向</td><td>$$sync_type$$</td></tr>
-                  <tr><td>同步服务器</td><td>$$server_id$$</td></tr>
-                  <tr><td>源数据源</td><td>$$sync_db_sour$$</td></tr>
-                  <tr><td>目标数据源</td><td>$$sync_db_dest$$</td></tr>
-                  <tr><td>同步表名</td><td>$$sync_table$$</td></tr>
-                  <tr><td>时间类型</td><td>$$sync_time_type$$</td></tr>
+                  <tr><td>任务标识</td><td>$$transfer_tag$$</td></tr>    
+                  <tr><td>传输服务器</td><td>$$server_desc$$</td></tr>
+                  <tr><td>源数据源</td><td>$$transfer_db_sour$$</td></tr>
+                  <tr><td>目标数据源</td><td>$$transfer_db_dest$$</td></tr>
+                  <tr><td>同步表名</td><td>$$sour_table$$</td></tr>
                   <tr><td>同步脚本</td><td>$$script_file$$</td></tr>
-                  <tr><td>运行时间</td><td>$$run_time$$</td></tr>                
                   <tr><td>异常信息</td><td>$$run_error$$</td></tr>
               </table>                
            </body>
@@ -876,16 +890,12 @@ def exception_connect_db(config,p_error):
        '''
     v_title  = '数据同步数据库异常[★★★]'
     v_content = v_templete.replace('$$task_desc$$', config.get('comments'))
-    v_content = v_content.replace('$$sync_tag$$',   config.get('sync_tag'))
-    v_content = v_content.replace('$$sync_ywlx$$' , config.get('sync_ywlx_name'))
-    v_content = v_content.replace('$$sync_type$$' , config.get('sync_type_name'))
-    v_content = v_content.replace('$$server_id$$', str(config.get('server_desc')))
-    v_content = v_content.replace('$$sync_db_sour$$', config.get('sync_db_sour'))
-    v_content = v_content.replace('$$sync_db_dest$$', config.get('sync_db_dest'))
-    v_content = v_content.replace('$$sync_table$$', config.get('sync_table'))
-    v_content = v_content.replace('$$sync_time_type$$', config.get('sync_time_type_name'))
+    v_content = v_content.replace('$$transfer_tag$$'  , config.get('transfer_tag'))
+    v_content = v_content.replace('$$server_desc$$', str(config.get('server_desc')))
+    v_content = v_content.replace('$$transfer_db_sour$$', config.get('transfer_db_sour'))
+    v_content = v_content.replace('$$transfer_db_dest$$', config.get('transfer_db_dest'))
+    v_content = v_content.replace('$$sour_table$$', config.get('sour_table'))
     v_content = v_content.replace('$$script_file$$', config.get('script_file'))
-    v_content = v_content.replace('$$run_time$$', config.get('run_time'))
     v_content = v_content.replace('$$run_error$$', str(p_error))
     send_mail25('190343@lifeat.cn','Hhc5HBtAuYTPGHQ8','190343@lifeat.cn', v_title,v_content)
 
@@ -934,38 +944,26 @@ def exception_running(config,p_error):
         <body>             
            <table class='xwtable'>
                <tr><td  width="30%">任务描述</td><td  width="70%">$$task_desc$$</td></tr>
-               <tr><td>任务标识</td><td>$$sync_tag$$</td></tr>
-               <tr><td>业务类型</td><td>$$sync_ywlx$$</td></tr>
-               <tr><td>同步方向</td><td>$$sync_type$$</td></tr>
-               <tr><td>同步服务器</td><td>$$server_id$$</td></tr>
-               <tr><td>源数据源</td><td>$$sync_db_sour$$</td></tr>
-               <tr><td>目标数据源</td><td>$$sync_db_dest$$</td></tr>
-               <tr><td>同步表名</td><td>$$sync_table$$</td></tr>
-               <tr><td>时间类型</td><td>$$sync_time_type$$</td></tr>
-               <tr><td>同步脚本</td><td>$$script_file$$</td></tr>
-               <tr><td>运行时间</td><td>$$run_time$$</td></tr>
-               <tr><td>运行语句</td><td>$$run_sql$$</td></tr>
+               <tr><td>任务标识</td><td>$$transfer_tag$$</td></tr>
+               <tr><td>传输服务器</td><td>$$server_desc$$</td></tr>
+               <tr><td>源数据源</td><td>$$transfer_db_sour$$</td></tr>
+               <tr><td>目标数据源</td><td>$$transfer_db_dest$$</td></tr>
+               <tr><td>同步表名</td><td>$$sour_table$$</td></tr>
+               <tr><td>同步脚本</td><td>$$script_file$$</td></tr>             
                <tr><td>异常信息</td><td>$$run_error$$</td></tr>
            </table>                
         </body>
      </html>
     '''
-
-    v_title   = '数据同步运行异常[★★★]'
-    v_content = v_templete.replace('$$task_desc$$'    ,config.get('comments'))
-    v_content = v_content.replace('$$sync_tag$$'      ,config.get('sync_tag'))
-    v_content = v_content.replace('$$sync_ywlx$$'     ,config.get('sync_ywlx_name'))
-    v_content = v_content.replace('$$sync_type$$'     ,config.get('sync_type_name'))
-    v_content = v_content.replace('$$server_id$$'     ,str(config.get('server_desc')))
-    v_content = v_content.replace('$$sync_db_sour$$'  ,config.get('sync_db_sour'))
-    v_content = v_content.replace('$$sync_db_dest$$'  ,config.get('sync_db_dest'))
-    v_content = v_content.replace('$$sync_table$$'    ,config.get('sync_table'))
-    v_content = v_content.replace('$$sync_time_type$$',config.get('sync_time_type_name'))
-    v_content = v_content.replace('$$script_file$$'  , config.get('script_file'))
-    v_content = v_content.replace('$$run_time$$'      ,config.get('run_time'))
-    v_content = v_content.replace('$$run_sql$$'       ,config.get('run_sql'))
-    v_content = v_content.replace('$$run_error$$'     ,str(p_error))
-
+    v_title   = '数据传输运行异常[★★★]'
+    v_content = v_templete.replace('$$task_desc$$'        ,config.get('comments'))
+    v_content = v_content.replace('$$transfer_tag$$'      ,config.get('transfer_tag'))
+    v_content = v_content.replace('$$server_desc$$'       ,str(config.get('server_desc')))
+    v_content = v_content.replace('$$transfer_db_sour$$'  ,config.get('transfer_db_sour'))
+    v_content = v_content.replace('$$transfer_db_dest$$'  ,config.get('transfer_db_dest'))
+    v_content = v_content.replace('$$sour_table$$'        ,config.get('sour_table'))
+    v_content = v_content.replace('$$script_file$$'       , config.get('script_file'))
+    v_content = v_content.replace('$$run_error$$'         ,str(p_error))
     send_mail25('190343@lifeat.cn','Hhc5HBtAuYTPGHQ8','190343@lifeat.cn', v_title,v_content)
 
 def transfer(config,debug):
@@ -980,7 +978,7 @@ def transfer(config,debug):
     sync_sqlserver_ddl(config, debug)
 
     #init sync table
-    config_init =sync_sqlserver_init(config, debug)
+    sync_sqlserver_init(config, debug)
 
 def main():
     #init variable
