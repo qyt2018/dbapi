@@ -928,7 +928,7 @@ def transfer_remote_file_sync(v_tag):
     result = {}
     result['code'] = 200
     result['msg']  = ''
-    result = get_db_transfer_config(v_tag)
+    result = get_db_sync_config(v_tag)
     print('transfer_remote_file_sync=',result)
     if result['code']!=200:
        return result
@@ -1698,7 +1698,7 @@ class run_script_remote_transfer(tornado.web.RequestHandler):
             self.set_header("Content-Type", "application/json; charset=UTF-8")
             v_tag = self.get_argument("tag")
             print('v_tag=', v_tag)
-            result = transfer_remote_file_sync(v_tag)
+            result = transfer_remote_file_transfer(v_tag)
             if result['code'] != 200:
                 v_json = json.dumps(result)
                 self.write(v_json)
