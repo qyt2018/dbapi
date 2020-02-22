@@ -1910,7 +1910,7 @@ class Application(tornado.web.Application):
             (r"/run_script_remote_sync",  run_script_remote_sync),
             (r"/stop_script_remote_sync", stop_script_remote_sync),
 
-            # dataX同步API接口
+            #DataX同步API接口
             (r"/push_datax_remote_sync", push_datax_remote_sync),
             (r"/read_datax_config_sync", read_datax_config_sync),
             (r"/read_datax_templete",    read_datax_templete),

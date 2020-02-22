@@ -57,9 +57,10 @@ def get_config(tag):
             return config
         else:
             print('接口调用失败:'+res['msg'])
-
+            sys.exit(0)
     except Exception as e :
         print(e)
+        sys.exit(0)
 
 def get_templete(id):
     try:
