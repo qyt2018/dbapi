@@ -1218,7 +1218,7 @@ def exception_connect_db(config,p_error):
            </body>
         </html>
        '''
-    v_title  = '数据同步数据库异常[★★★]'
+    v_title   = config.get('comments')+'数据同步数据库异常[★★★]'
     v_content = v_templete.replace('$$task_desc$$', config.get('comments'))
     v_content = v_content.replace('$$sync_tag$$',   config.get('sync_tag'))
     v_content = v_content.replace('$$sync_ywlx$$' , config.get('sync_ywlx_name'))
@@ -1295,7 +1295,7 @@ def exception_running(config,p_error):
      </html>
     '''
 
-    v_title   = '数据同步运行异常[★★★]'
+    v_title   = config.get('comments')+'数据同步运行异常[★★★]'
     v_content = v_templete.replace('$$task_desc$$'    ,config.get('comments'))
     v_content = v_content.replace('$$sync_tag$$'      ,config.get('sync_tag'))
     v_content = v_content.replace('$$sync_ywlx$$'     ,config.get('sync_ywlx_name'))
