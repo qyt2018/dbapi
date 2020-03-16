@@ -203,13 +203,13 @@ def get_db_sync_config(p_tag):
 
     #检测同步标识是否存在
     if check_db_sync_config(p_tag)==0:
-       result['code'] = -1
+       result['code'] = -2
        result['msg'] = '同步标识不存在!'
        return result
 
     #任务已禁用
     if check_sync_task_status(p_tag) > 0:
-       result['code'] = -1
+       result['code'] = -3
        result['msg'] = '同步任务已禁用!'
        return result
 
@@ -688,6 +688,23 @@ def run_remote_sync_task(v_tag):
     ssh.close()
     return result
 
+def run_remote_datax_task(v_tag):
+    result = get_datax_sync_config(v_tag)
+    if result['code']!=200:
+       return result
+    v_cmd   = 'nohup {0}/datax_sync.sh {1} {2} &>/dev/null &'.format(result['msg']['script_path'], 'datax_sync.py', v_tag)
+    print(v_cmd)
+    ssh = paramiko.SSHClient()
+    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    config = db_config()
+    v_password = aes_decrypt(config['db_mysql'], result['msg']['server_pass'], result['msg']['server_user'])
+    ssh.connect(hostname=result['msg']['server_ip']  , port=int(result['msg']['server_port']),
+                username=result['msg']['server_user'], password=v_password)
+    ssh.exec_command(v_cmd)
+    print('Remote datax_task is running !')
+    ssh.close()
+    return result
+
 def run_remote_transfer_task(v_tag):
     result = get_db_transfer_config(v_tag)
     if result['code']!=200:
@@ -728,8 +745,9 @@ def stop_remote_sync_task(v_tag):
     result = get_db_sync_config(v_tag)
     if result['code']!=200:
        return result
-    v_cmd1 = """ps -ef | grep {0} |grep -v grep | awk '{print $2}'  | wc -l""".format(v_tag)
-    v_cmd2 = """ps -ef | grep {0} |grep -v grep | awk '{print $2}'  | xargs kill -9""".format(v_tag)
+    v_cmd1 = """ps -ef | grep {0} |grep -v grep | wc -l""".format(v_tag)
+    v_cmd2 = """ps -ef | grep $$SYNC_TAG$$ |grep -v grep | awk '{print $2}'  | xargs kill -9
+             """.replace('$$SYNC_TAG$$',v_tag)
     print(v_cmd1)
     print(v_cmd2)
     ssh = paramiko.SSHClient()
@@ -741,8 +759,8 @@ def stop_remote_sync_task(v_tag):
 
     stdin, stdout, stderr = ssh.exec_command(v_cmd1)
     ret = stdout.read()
-    ret = str(ret, encoding='utf-8')
-    print('stop_remote_sync_task->stdout=',ret)
+    ret = str(ret, encoding='utf-8').replace('\n','')
+    print('stop_remote_sync_task->stdout=',ret,type(ret))
     if ret=='0':
        result['code'] = -1
        result['msg'] = '该任务未运行!'
@@ -772,8 +790,40 @@ def stop_remote_transfer_task(v_tag):
 
     stdin, stdout, stderr = ssh.exec_command(v_cmd1)
     ret = stdout.read()
-    ret = str(ret, encoding='utf-8')
+    ret = str(ret, encoding='utf-8').replace('\n','')
     print('stop_remote_transfer_task->stdout=',ret)
+    if ret == '0':
+       result['code'] = -1
+       result['msg'] = '该任务未运行!'
+       ssh.close()
+       return result
+    else:
+       ssh.exec_command(v_cmd2)
+       result['code'] = 200
+       result['msg'] = '任务:{0}已停止!'.format(v_tag)
+       ssh.close()
+       return result
+
+
+def stop_datax_sync_task(v_tag):
+    result = get_datax_sync_config(v_tag)
+    if result['code']!=200:
+       return result
+    v_cmd1 = """ps -ef | grep $$TAG$$ |grep -v grep | wc -l""".replace('$$TAG$$',v_tag)
+    v_cmd2 = """ps -ef | grep $$TAG$$ |grep -v grep | awk '{print $2}'  | xargs kill -9""".replace('$$TAG$$',v_tag)
+    print(v_cmd1)
+    print(v_cmd2)
+    ssh = paramiko.SSHClient()
+    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    config = db_config()
+    v_password = aes_decrypt(config['db_mysql'], result['msg']['server_pass'], result['msg']['server_user'])
+    ssh.connect(hostname=result['msg']['server_ip']  , port=int(result['msg']['server_port']),
+                username=result['msg']['server_user'], password=v_password)
+
+    stdin, stdout, stderr = ssh.exec_command(v_cmd1)
+    ret = stdout.read()
+    ret = str(ret, encoding='utf-8').replace('\n','')
+    print('stop_datax_sync_task->stdout=',ret)
     if ret == '0':
        result['code'] = -1
        result['msg'] = '该任务未运行!'
@@ -1355,35 +1405,35 @@ def run_remote_cmd_transfer(v_tag):
     ssh.close()
     return result
 
-def run_remote_cmd_transfer(v_tag):
-    # Init dict
-    result = {}
-    result['code'] = 200
-    result['msg'] = ''
-    print('run_remote_cmd_transfer!')
-    result = get_db_transfer_config(v_tag)
-    if result['code'] != 200:
-        return result
-
-    # Decryption password
-    config = db_config()
-    print('config[db_mysql=', config['db_mysql'])
-    print(result['msg']['server_pass'], result['msg']['server_user'])
-    v_password = aes_decrypt(config['db_mysql'], result['msg']['server_pass'], result['msg']['server_user'])
-    print('run_remote_cmd_transfer ->v_password=', v_password)
-
-    ssh = paramiko.SSHClient()
-    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    ssh.connect(hostname=result['msg']['server_ip'] ,port=int(result['msg']['server_port']),
-                username=result['msg']['server_user'],password=v_password)
-    print('run_remote_cmd_transfer! connect!')
-    remote_file1 = '{0}/{1}'.format(result['msg']['script_path'], result['msg']['script_file'])
-    remote_file2 = '{0}/{1}'.format(result['msg']['script_path'], 'db_transfer.sh')
-    ssh.exec_command('chmod +x {0}'.format(remote_file1))
-    ssh.exec_command('chmod +x {0}'.format(remote_file2))
-    print('run_remote_cmd_transfer! exec_command!')
-    ssh.close()
-    return result
+# def run_remote_cmd_transfer(v_tag):
+#     # Init dict
+#     result = {}
+#     result['code'] = 200
+#     result['msg'] = ''
+#     print('run_remote_cmd_transfer!')
+#     result = get_db_transfer_config(v_tag)
+#     if result['code'] != 200:
+#         return result
+#
+#     # Decryption password
+#     config = db_config()
+#     print('config[db_mysql=', config['db_mysql'])
+#     print(result['msg']['server_pass'], result['msg']['server_user'])
+#     v_password = aes_decrypt(config['db_mysql'], result['msg']['server_pass'], result['msg']['server_user'])
+#     print('run_remote_cmd_transfer ->v_password=', v_password)
+#
+#     ssh = paramiko.SSHClient()
+#     ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+#     ssh.connect(hostname=result['msg']['server_ip'] ,port=int(result['msg']['server_port']),
+#                 username=result['msg']['server_user'],password=v_password)
+#     print('run_remote_cmd_transfer! connect!')
+#     remote_file1 = '{0}/{1}'.format(result['msg']['script_path'], result['msg']['script_file'])
+#     remote_file2 = '{0}/{1}'.format(result['msg']['script_path'], 'db_transfer.sh')
+#     ssh.exec_command('chmod +x {0}'.format(remote_file1))
+#     ssh.exec_command('chmod +x {0}'.format(remote_file2))
+#     print('run_remote_cmd_transfer! exec_command!')
+#     ssh.close()
+#     return result
 
 def run_datax_remote_cmd_sync(v_tag):
     # Init dict
@@ -1692,6 +1742,26 @@ class run_script_remote_sync(tornado.web.RequestHandler):
             print('push_script_remote error!')
             print(str(e))
 
+class run_datax_remote_sync(tornado.web.RequestHandler):
+    def post(self):
+        try:
+            self.set_header("Content-Type", "application/json; charset=UTF-8")
+            v_tag   = self.get_argument("tag")
+            print('v_tag=',v_tag)
+            result  = transfer_datax_remote_file_sync(v_tag)
+            if result['code'] != 200:
+                v_json = json.dumps(result)
+                self.write(v_json)
+            else:
+                result  = run_remote_datax_task(v_tag)
+                v_json  = json.dumps(result)
+                print("{0} dbops api interface /run_script_remote_sync success!".format(get_time()))
+                print_dict(result['msg'] )
+                self.write(v_json)
+        except Exception as e:
+            print('push_script_remote error!')
+            print(str(e))
+
 class run_script_remote_transfer(tornado.web.RequestHandler):
     def post(self):
         try:
@@ -1707,8 +1777,6 @@ class run_script_remote_transfer(tornado.web.RequestHandler):
                 result = run_remote_transfer_task(v_tag)
                 v_json = json.dumps(result)
                 print("{0} dbops api interface /run_script_remote_sync success!".format(get_time()))
-                print("入口参数：\n\t{0}".format(v_tag))
-                print("出口参数：")
                 print_dict(result['msg'])
                 self.write(v_json)
         except Exception as e:
@@ -1724,11 +1792,9 @@ class stop_script_remote_sync(tornado.web.RequestHandler):
             result  = stop_remote_sync_task(v_tag)
             v_json  = json.dumps(result)
             print("{0} dbops api interface /stop_script_remote_sync success!".format(get_time()))
-            print("入口参数：\n\t{0}".format(v_tag))
-            print("出口参数：")
-            print_dict(result['msg'] )
             self.write(v_json)
         except Exception as e:
+            traceback.print_stack()
             print('stop_script_remote_sync error!'+str(e))
 
 class stop_script_remote_transfer(tornado.web.RequestHandler):
@@ -1739,6 +1805,18 @@ class stop_script_remote_transfer(tornado.web.RequestHandler):
             result  = stop_remote_transfer_task(v_tag)
             v_json  = json.dumps(result)
             print("{0} dbops api interface /stop_remote_transfer_task success!".format(get_time()))
+            self.write(v_json)
+        except Exception as e:
+            print('stop_remote_transfer_task error!'+ traceback.format_exc())
+
+class stop_datax_remote_sync(tornado.web.RequestHandler):
+    def post(self):
+        try:
+            self.set_header("Content-Type", "application/json; charset=UTF-8")
+            v_tag   = self.get_argument("tag")
+            result  = stop_datax_sync_task(v_tag)
+            v_json  = json.dumps(result)
+            print("{0} dbops api interface /stop_datax_remote_sync success!".format(get_time()))
             self.write(v_json)
         except Exception as e:
             print('stop_remote_transfer_task error!'+ traceback.format_exc())
@@ -1914,6 +1992,8 @@ class Application(tornado.web.Application):
             (r"/push_datax_remote_sync", push_datax_remote_sync),
             (r"/read_datax_config_sync", read_datax_config_sync),
             (r"/read_datax_templete",    read_datax_templete),
+            (r"/run_datax_remote_sync",  run_datax_remote_sync),
+            (r"/stop_datax_remote_sync", stop_datax_remote_sync),
 
             #传输API接口
             (r"/read_config_transfer", read_config_transfer),

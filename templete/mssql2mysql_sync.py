@@ -264,8 +264,13 @@ def get_config_from_db(tag,workdir):
             v_content = v_content.replace('$$interface$$', url)
             v_content = v_content.replace('$$parameter$$', json.dumps(values))
             v_content = v_content.replace('$$error$$', res['msg'])
-            exception_interface(v_title,v_content)
-            sys.exit(0)
+            if res['code'] != -3:
+                exception_interface(v_title, v_content)
+                sys.exit(0)
+            else:
+                print(res['msg'])
+                sys.exit(0)
+
     except Exception as e :
         file_name = workdir + '/config/' + tag + '.ini'
         print('接口调用失败:{0}'.format(str(e)))
