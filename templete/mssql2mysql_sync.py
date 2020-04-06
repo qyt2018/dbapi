@@ -1438,23 +1438,12 @@ def sync_sqlserver_data_pk(config,ftab,config_init):
                                 ins_val = ins_val + "'" + format_sql(str(r[j])) + "',"
                         ins_val = ins_val + config['sync_col_val']
                         v_sql = v_sql + '(' + ins_val+ '),'
-                        v_sql_del = v_sql_del + get_sync_where(v_pk_names, r[0]) + ","
+                        v_sql_del = v_sql_del + get_sync_where(v_pk_names, r[0]) + "$$$"
                     batch_sql = ins_sql_header + v_sql[0:-1]
 
-                    #noinspection PyBroadException
-                    # try:
-                    #     for d in v_sql_del[0:-1].split(','):
-                    #         cr_desc.execute('delete from {0} where {1}'.format(get_mapping_tname(tab), d))
-                    #     #print('sync_sqlserver_data_pk=',batch_sql)
-                    #     cr_desc.execute(batch_sql)
-                    #     i_counter = i_counter + len(rs_source)
-                    # except:
-                    #     print('batch_sql=', batch_sql)
-                    #     print(traceback.format_exc())
-                    #     sys.exit(0)
-
-                    for d in v_sql_del[0:-1].split(','):
+                    for d in v_sql_del[0:-3].split('$$$'):
                         config['run_sql'] = convert('delete from {0} where {1}'.format(get_mapping_tname(tab), d))
+                        #print('delete from {0} where {1}'.format(get_mapping_tname(tab), d))
                         cr_desc.execute('delete from {0} where {1}'.format(get_mapping_tname(tab), d))
                     config['run_sql'] = batch_sql
                     cr_desc.execute(batch_sql)

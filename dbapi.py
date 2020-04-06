@@ -297,6 +297,65 @@ def get_db_transfer_config(p_tag):
     result['msg']=rs
     return result
 
+def get_db_archive_config(p_tag):
+    config=db_config()
+    db=config['db_mysql']
+    cr=db.cursor()
+    result = {}
+    result['code'] = 200
+    result['msg'] = ''
+
+    #检测传输服务器是否有效
+    if check_server_archive_status(p_tag)>0:
+       result['code'] = -1
+       result['msg'] = '归档服务器已禁用!'
+       return result
+
+    #检测同步标识是否存在
+    if check_db_archive_config(p_tag)==0:
+       result['code'] = -1
+       result['msg'] = '归档标识不存在!'
+       return result
+
+    cr.execute('''SELECT  a.archive_tag,
+                      CONCAT(c.ip,':',c.port,':',a.sour_schema,':',c.user,':',c.password) AS archive_db_sour,                          
+                      CONCAT(d.ip,':',d.port,':',a.dest_schema,':',d.user,':',d.password) AS archive_db_dest,  
+                      a.server_id,
+                      b.server_desc,
+                      a.api_server,
+                      LOWER(a.sour_table) AS sour_table,
+                      a.archive_time_col,
+                      a.archive_rentition,
+                      a.rentition_time,
+                      a.rentition_time_type,
+                      e.dmmc as rentition_time_type_cn,
+                      a.if_cover,
+                      a.script_path,
+                      a.script_file,
+                      a.run_time,
+                      a.batch_size,
+                      a.comments,
+                      a.python3_home,
+                      a.status,
+                      b.server_ip,
+                      b.server_port,
+                      b.server_user,
+                      b.server_pass                         
+                FROM t_db_archive_config a,t_server b,t_db_source c,t_db_source d,t_dmmx e
+                WHERE a.server_id=b.id 
+                AND a.sour_db_id=c.id
+                AND a.dest_db_id=d.id
+                and a.rentition_time_type=e.dmm
+                and e.dm='20'
+                AND a.archive_tag ='{0}' 
+                ORDER BY a.id
+            '''.format(p_tag))
+    rs=cr.fetchone()
+    cr.close()
+    result['msg']=rs
+    return result
+
+
 def get_datax_sync_config(p_tag):
     config=db_config()
     db=config['db_mysql']
@@ -383,6 +442,18 @@ def check_db_transfer_config(p_tag):
     cr.close()
     return  rs['count(0)']
 
+
+def check_db_archive_config(p_tag):
+    config=db_config()
+    db=config['db_mysql']
+    cr=db.cursor()
+    cr.execute('''select count(0) from t_db_archive_config where archive_tag='{0}'
+               '''.format(p_tag))
+    rs=cr.fetchone()
+    cr.close()
+    return  rs['count(0)']
+
+
 def check_datax_sync_config(p_tag):
     config=db_config()
     db=config['db_mysql']
@@ -410,6 +481,17 @@ def check_server_transfer_status(p_tag):
     cr=db.cursor()
     cr.execute('''select count(0) from t_db_transfer_config a,t_server b 
                   where a.server_id=b.id and a.transfer_tag='{0}' and b.status='0'
+               '''.format(p_tag))
+    rs=cr.fetchone()
+    cr.close()
+    return  rs['count(0)']
+
+def check_server_archive_status(p_tag):
+    config=db_config()
+    db=config['db_mysql']
+    cr=db.cursor()
+    cr.execute('''select count(0) from t_db_archive_config a,t_server b 
+                  where a.server_id=b.id and a.archive_tag='{0}' and b.status='0'
                '''.format(p_tag))
     rs=cr.fetchone()
     cr.close()
@@ -463,8 +545,7 @@ def check_tab_exists(p_tab,p_where):
     config=db_config()
     db=config['db_mysql']
     cr=db.cursor()
-    cr.execute('''select count(0) from {0} {1}
-               '''.format(p_tab,p_where))
+    cr.execute('''select count(0) from {0} {1}'''.format(p_tab,p_where))
     rs=cr.fetchone()
     cr.close()
     return  rs['count(0)']
@@ -510,6 +591,38 @@ def save_transfer_log(config):
     cr.close()
     return result
 
+def save_archive_log(config):
+    result = {}
+    result['code'] = 200
+    result['msg'] = 'success'
+    db = db_config()['db_mysql']
+    cr = db.cursor()
+    v_where = " where archive_tag='{0}' and create_date ='{1}'".format(config['archive_tag'], config['create_date'])
+    if check_tab_exists('t_db_archive_log', v_where) == 0:
+        v_sql='''insert into t_db_archive_log(archive_tag,table_name,create_date,start_time,end_time,duration,amount,percent,message) 
+                    values('{0}','{1}','{2}','{3}','{4}','{5}','{6}','{7}','{8}')
+              '''.format(config['archive_tag'],config['table_name'],config['create_date'],
+                         config['start_time'],config['end_time'],config['duration'],
+                         config['amount'],config['percent'],config['message'])
+    else:
+        v_sql = '''update t_db_archive_log
+                            set table_name   = '{0}',
+                                duration     = '{1}',
+                                amount       = '{2}',
+                                percent      = '{3}',
+                                start_time   = '{4}',
+                                end_time     = '{5}',
+                                message      = '{6}'
+                          where archive_tag = '{7}' and create_date='{8}'
+                      '''.format(config['table_name'],config['duration'],config['amount'],
+                                 config['percent'],config['start_time'],config['end_time'],
+                                 config['message'],config['archive_tag'],config['create_date'])
+
+    print('save_archive_log=',v_sql)
+    cr.execute(v_sql)
+    db.commit()
+    cr.close()
+    return result
 
 def save_sync_log_detail(config):
     result = {}
@@ -723,6 +836,24 @@ def run_remote_transfer_task(v_tag):
     ssh.close()
     return result
 
+def run_remote_archive_task(v_tag):
+    result = get_db_archive_config(v_tag)
+    if result['code']!=200:
+       return result
+
+    v_cmd   = 'nohup {0}/db_archive.sh {1} {2} &>/dev/null &'.format(result['msg']['script_path'], result['msg']['script_file'], v_tag)
+    print(v_cmd)
+    ssh = paramiko.SSHClient()
+    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    config = db_config()
+    v_password = aes_decrypt(config['db_mysql'], result['msg']['server_pass'], result['msg']['server_user'])
+    ssh.connect(hostname=result['msg']['server_ip']  , port=int(result['msg']['server_port']),
+                username=result['msg']['server_user'], password=v_password)
+    ssh.exec_command(v_cmd)
+    print('Remote archive task:{0} is running !'.format(v_tag))
+    ssh.close()
+    return result
+
 def stop_remote_backup_task(v_tag):
     result = get_db_config(v_tag)
     if result['code']!=200:
@@ -792,6 +923,37 @@ def stop_remote_transfer_task(v_tag):
     ret = stdout.read()
     ret = str(ret, encoding='utf-8').replace('\n','')
     print('stop_remote_transfer_task->stdout=',ret)
+    if ret == '0':
+       result['code'] = -1
+       result['msg'] = '该任务未运行!'
+       ssh.close()
+       return result
+    else:
+       ssh.exec_command(v_cmd2)
+       result['code'] = 200
+       result['msg'] = '任务:{0}已停止!'.format(v_tag)
+       ssh.close()
+       return result
+
+def stop_remote_archive_task(v_tag):
+    result = get_db_archive_config(v_tag)
+    if result['code']!=200:
+       return result
+    v_cmd1 = """ps -ef | grep $$TAG$$ |grep -v grep | awk '{print $2}'  | wc -l""".replace('$$TAG$$',v_tag)
+    v_cmd2 = """ps -ef | grep $$TAG$$ |grep -v grep | awk '{print $2}'  | xargs kill -9""".replace('$$TAG$$',v_tag)
+    print(v_cmd1)
+    print(v_cmd2)
+    ssh = paramiko.SSHClient()
+    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    config = db_config()
+    v_password = aes_decrypt(config['db_mysql'], result['msg']['server_pass'], result['msg']['server_user'])
+    ssh.connect(hostname=result['msg']['server_ip']  , port=int(result['msg']['server_port']),
+                username=result['msg']['server_user'], password=v_password)
+
+    stdin, stdout, stderr = ssh.exec_command(v_cmd1)
+    ret = stdout.read()
+    ret = str(ret, encoding='utf-8').replace('\n','')
+    print('stop_remote_archive_task->stdout=',ret)
     if ret == '0':
        result['code'] = -1
        result['msg'] = '该任务未运行!'
@@ -1084,6 +1246,68 @@ def transfer_remote_file_transfer(v_tag):
     templete_file = './templete/db_transfer.sh'
     local_file    = './script/db_transfer.sh'
     remote_file   = '{0}/db_transfer.sh'.format(result['msg']['script_path'])
+    os.system('cp -f {0} {1}'.format(templete_file, local_file))
+    print('templete_file=',templete_file)
+    print('local_file=',local_file)
+    print('remote_file=',remote_file)
+    with open(local_file, 'w') as obj_file:
+        obj_file.write(get_file_contents(templete_file).
+                       replace('$$PYTHON3_HOME$$', result['msg']['python3_home']).
+                       replace('$$SCRIPT_PATH$$' , result['msg']['script_path']))
+    sftp.put(localpath=local_file, remotepath=remote_file)
+    write_log('Script:{0} send to {1} ok.'.format(local_file, remote_file))
+    transport.close()
+    ssh.close()
+    return result
+
+def transfer_remote_file_archive(v_tag):
+    print('transfer_remote_file_sync!')
+    result = {}
+    result['code'] = 200
+    result['msg']  = ''
+    result = get_db_archive_config(v_tag)
+    print('transfer_remote_file_archive=',result)
+    if result['code']!=200:
+       return result
+
+    #Decryption password
+    config = db_config()
+    print('config[db_mysql=', config['db_mysql'])
+    print(result['msg']['server_pass'], result['msg']['server_user'])
+    v_password = aes_decrypt(config['db_mysql'], result['msg']['server_pass'], result['msg']['server_user'])
+    print('transfer_remote_file_archive ->v_password=', v_password)
+
+    transport = paramiko.Transport((result['msg']['server_ip'], int(result['msg']['server_port'])))
+    transport.connect(username=result['msg']['server_user'], password=v_password)
+    sftp = paramiko.SFTPClient.from_transport(transport)
+
+    #replace script file
+    templete_file = './templete/{0}'.format(result['msg']['script_file'])
+    local_file    = './script/{0}'.format(result['msg']['script_file'])
+    os.system('cp -f {0} {1}'.format(templete_file, local_file))
+    with open(local_file, 'w') as obj_file:
+        obj_file.write(get_file_contents(templete_file).
+                       replace('$$API_SERVER$$', result['msg']['api_server']))
+
+    #create sync directory
+    ssh = paramiko.SSHClient()
+    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    ssh.connect(hostname=result['msg']['server_ip'], port=int(result['msg']['server_port']),
+                username=result['msg']['server_user'], password=v_password)
+    ssh.exec_command('mkdir -p {0}'.format(result['msg']['script_path']))
+    print("remote sync directory '{0}' created!".format(result['msg']['script_path']))
+
+    #send .py file
+    local_file  = './script/{0}'.format(result['msg']['script_file'])
+    remote_file = '{0}/{1}'.format(result['msg']['script_path'],result['msg']['script_file'])
+    print('transfer_remote_file_archive'+'$'+local_file+'$'+remote_file)
+    sftp.put(localpath=local_file, remotepath=remote_file)
+    print('Script:{0} send to {1} ok.'.format(local_file, remote_file))
+
+    #send mysql_transfer.sh file
+    templete_file = './templete/db_archive.sh'
+    local_file    = './script/db_archive.sh'
+    remote_file   = '{0}/db_archive.sh'.format(result['msg']['script_path'])
     os.system('cp -f {0} {1}'.format(templete_file, local_file))
     print('templete_file=',templete_file)
     print('local_file=',local_file)
@@ -1405,35 +1629,35 @@ def run_remote_cmd_transfer(v_tag):
     ssh.close()
     return result
 
-# def run_remote_cmd_transfer(v_tag):
-#     # Init dict
-#     result = {}
-#     result['code'] = 200
-#     result['msg'] = ''
-#     print('run_remote_cmd_transfer!')
-#     result = get_db_transfer_config(v_tag)
-#     if result['code'] != 200:
-#         return result
-#
-#     # Decryption password
-#     config = db_config()
-#     print('config[db_mysql=', config['db_mysql'])
-#     print(result['msg']['server_pass'], result['msg']['server_user'])
-#     v_password = aes_decrypt(config['db_mysql'], result['msg']['server_pass'], result['msg']['server_user'])
-#     print('run_remote_cmd_transfer ->v_password=', v_password)
-#
-#     ssh = paramiko.SSHClient()
-#     ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-#     ssh.connect(hostname=result['msg']['server_ip'] ,port=int(result['msg']['server_port']),
-#                 username=result['msg']['server_user'],password=v_password)
-#     print('run_remote_cmd_transfer! connect!')
-#     remote_file1 = '{0}/{1}'.format(result['msg']['script_path'], result['msg']['script_file'])
-#     remote_file2 = '{0}/{1}'.format(result['msg']['script_path'], 'db_transfer.sh')
-#     ssh.exec_command('chmod +x {0}'.format(remote_file1))
-#     ssh.exec_command('chmod +x {0}'.format(remote_file2))
-#     print('run_remote_cmd_transfer! exec_command!')
-#     ssh.close()
-#     return result
+def run_remote_cmd_archive(v_tag):
+    # Init dict
+    result = {}
+    result['code'] = 200
+    result['msg'] = ''
+    result = get_db_archive_config(v_tag)
+    if result['code'] != 200:
+        return result
+
+    # Decryption password
+    config = db_config()
+    print('config[db_mysql=', config['db_mysql'])
+    print(result['msg']['server_pass'], result['msg']['server_user'])
+    v_password = aes_decrypt(config['db_mysql'], result['msg']['server_pass'], result['msg']['server_user'])
+    print('run_remote_cmd_archive ->v_password=', v_password)
+
+    ssh = paramiko.SSHClient()
+    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    ssh.connect(hostname=result['msg']['server_ip'] ,port=int(result['msg']['server_port']),
+                username=result['msg']['server_user'],password=v_password)
+    print('run_remote_cmd_archive! connect!')
+    remote_file1 = '{0}/{1}'.format(result['msg']['script_path'], result['msg']['script_file'])
+    remote_file2 = '{0}/{1}'.format(result['msg']['script_path'], 'db_archive.sh')
+    ssh.exec_command('chmod +x {0}'.format(remote_file1))
+    ssh.exec_command('chmod +x {0}'.format(remote_file2))
+    print('run_remote_cmd_archive! exec_command!')
+    ssh.close()
+    return result
+
 
 def run_datax_remote_cmd_sync(v_tag):
     # Init dict
@@ -1575,6 +1799,25 @@ class read_config_transfer(tornado.web.RequestHandler):
             result  = get_db_transfer_config(v_tag)
             v_json  = json.dumps(result)
             write_log("{0} dbops api interface /read_config_transfer success!".format(get_time()))
+            write_log("入口参数：\n\t{0}".format(v_tag))
+            write_log("出口参数：")
+            if result['code']==200:
+                print_dict(result['msg'])
+            self.write(v_json)
+        except Exception as e:
+            write_log(str(e))
+            result['code'] = -1
+            result['msg'] = str(e)
+            self.write(v_json)
+
+class read_config_archive(tornado.web.RequestHandler):
+    def post(self):
+        try:
+            self.set_header("Content-Type", "application/json; charset=UTF-8")
+            v_tag   = self.get_argument("tag")
+            result  = get_db_archive_config(v_tag)
+            v_json  = json.dumps(result)
+            write_log("{0} dbops api interface /read_config_archive success!".format(get_time()))
             write_log("入口参数：\n\t{0}".format(v_tag))
             write_log("出口参数：")
             if result['code']==200:
@@ -1783,6 +2026,28 @@ class run_script_remote_transfer(tornado.web.RequestHandler):
             print('push_script_remote error!')
             print(str(e))
 
+class run_script_remote_archive(tornado.web.RequestHandler):
+    def post(self):
+        try:
+            self.set_header("Content-Type", "application/json; charset=UTF-8")
+            v_tag = self.get_argument("tag")
+            print('v_tag=', v_tag)
+            result = transfer_remote_file_archive(v_tag)
+            if result['code'] != 200:
+                v_json = json.dumps(result)
+                self.write(v_json)
+            else:
+                result = run_remote_cmd_archive(v_tag)
+                result = run_remote_archive_task(v_tag)
+                v_json = json.dumps(result)
+                print("{0} dbops api interface /run_script_remote_archive success!".format(get_time()))
+                print_dict(result['msg'])
+                self.write(v_json)
+        except Exception as e:
+            print('push_script_remote error!')
+            print(str(e))
+
+
 class stop_script_remote_sync(tornado.web.RequestHandler):
     def post(self):
         try:
@@ -1808,6 +2073,19 @@ class stop_script_remote_transfer(tornado.web.RequestHandler):
             self.write(v_json)
         except Exception as e:
             print('stop_remote_transfer_task error!'+ traceback.format_exc())
+
+class stop_script_remote_archive(tornado.web.RequestHandler):
+    def post(self):
+        try:
+            self.set_header("Content-Type", "application/json; charset=UTF-8")
+            v_tag   = self.get_argument("tag")
+            result  = stop_remote_archive_task(v_tag)
+            v_json  = json.dumps(result)
+            print("{0} dbops api interface /stop_remote_transfer_task success!".format(get_time()))
+            self.write(v_json)
+        except Exception as e:
+            print('stop_remote_transfer_task error!'+ traceback.format_exc())
+
 
 class stop_datax_remote_sync(tornado.web.RequestHandler):
     def post(self):
@@ -1888,6 +2166,37 @@ class push_script_remote_transfer(tornado.web.RequestHandler):
             print(str(e))
             write_log(str(e))
 
+class push_script_remote_archive(tornado.web.RequestHandler):
+    def post(self):
+        try:
+            self.set_header("Content-Type", "application/json; charset=UTF-8")
+            v_tag = self.get_argument("tag")
+            result = transfer_remote_file_archive(v_tag)
+            if result['code'] != 200:
+                v_json = json.dumps(result)
+                print('v_json=', v_json)
+                self.write(v_json)
+                return
+
+            result = run_remote_cmd_archive(v_tag)
+            if result['code'] != 200:
+                v_json = json.dumps(result)
+                print(v_json)
+                self.write(v_json)
+                return
+
+            v_json = json.dumps(result)
+            write_log("{0} dbops api interface /push_script_remote_transfer success!".format(get_time()))
+            write_log("入口参数：\n\t{0}".format(v_tag))
+            write_log("出口参数：")
+            print_dict(result['msg'])
+            print(v_json)
+            self.write(v_json)
+        except Exception as e:
+            print(str(e))
+            write_log(str(e))
+
+
 class push_datax_remote_sync(tornado.web.RequestHandler):
     def post(self):
         try:
@@ -1948,6 +2257,16 @@ class write_transfer_log(tornado.web.RequestHandler):
         print("{0} dbops api interface /write_sync_log success!".format(get_time()))
         self.write(v_json)
 
+class write_archive_log(tornado.web.RequestHandler):
+    def post(self):
+        self.set_header("Content-Type", "application/json; charset=UTF-8")
+        v_tag = self.get_argument("tag")
+        config = json.loads(v_tag)
+        result = save_archive_log(config)
+        v_json = json.dumps(result)
+        print("{0} dbops api interface /write_archive_log success!".format(get_time()))
+        self.write(v_json)
+
 class write_sync_log_detail(tornado.web.RequestHandler):
     def post(self):
         self.set_header("Content-Type", "application/json; charset=UTF-8")
@@ -2001,6 +2320,13 @@ class Application(tornado.web.Application):
             (r"/write_transfer_log", write_transfer_log),
             (r"/run_script_remote_transfer", run_script_remote_transfer),
             (r"/stop_script_remote_transfer", stop_script_remote_transfer),
+
+            # 归档API接口
+            (r"/read_config_archive", read_config_archive),
+            (r"/push_script_remote_archive", push_script_remote_archive),
+            (r"/write_archive_log", write_archive_log),
+            (r"/run_script_remote_archive", run_script_remote_archive),
+            (r"/stop_script_remote_archive", stop_script_remote_archive),
         ]
         tornado.web.Application.__init__(self, handlers)
 
