@@ -915,6 +915,11 @@ def sync_mysql_data_no_pkid(config, ftab,config_init):
                print('DB:{0},delete {1} table data please wait...'.format(config['db_mysql_desc_string'], tab,ftab.split(':')[2]))
                cr_desc.execute('delete from {0}'.format(tab))
                print('DB:{0},delete {1} table data ok!'.format(config['db_mysql_desc_string'], tab))
+            else:
+                print('delete from {0} {1} '.format(tab, v_where))
+                cr_desc.execute('delete from {0} {1} '.format(tab, v_where))
+                print('DB:{0},delete {1} table recent {2} {3} data...\n'
+                      .format(config['db_mysql_desc_string'], tab,ftab.split(':')[2],config['sync_time_type']))
 
             while rs_source:
                 batch_sql = ""
@@ -939,20 +944,6 @@ def sync_mysql_data_no_pkid(config, ftab,config_init):
                     v_sql = v_sql + '(' + ins_val[0:-1] + '),'
                     v_sql_del = v_sql_del + get_sync_where(v_pk_names, r[0])+ ","
                 batch_sql = ins_sql_header + v_sql[0:-1]
-
-                #noinspection PyBroadException
-                # try:
-                #     if ftab.split(':')[1] == '':
-                #         cr_desc.execute(batch_sql)
-                #     else:
-                #         for d in v_sql_del[0:-1].split(','):
-                #             cr_desc.execute('delete from {0} where {1}'.format(tab, d))
-                #         cr_desc.execute(batch_sql)
-                #     i_counter = i_counter + len(rs_source)
-                # except:
-                #     print(traceback.format_exc())
-                #     print(batch_sql)
-                #     sys.exit(0)
 
                 if ftab.split(':')[1] == '':
                     config['run_sql'] =batch_sql
@@ -1020,10 +1011,10 @@ def sync_mysql_data_pkid(config, ftab,config_init):
                 print( "Sync Table increment :{0} ...".format(ftab.split(':')[0]))
             else:
                 print( "Sync Table increment :{0} for In recent {1} {2}..."
-                                  .format(ftab.split(':')[0],ftab.split(':')[2],config['sync_time_type']))
+                       .format(ftab.split(':')[0],ftab.split(':')[2],config['sync_time_type']))
 
             cr_desc.execute('delete from {0} {1} '.format(tab, v_where))
-            print('DB:{0},delete {1} table recent {2} data...'.format(config['db_mysql_desc_string'],tab,ftab.split(':')[2]))
+            print('DB:{0},delete {1} table recent {2} data...\n'.format(config['db_mysql_desc_string'],tab,ftab.split(':')[2]))
 
             while rs_source:
                 batch_sql = ""
@@ -1045,14 +1036,6 @@ def sync_mysql_data_pkid(config, ftab,config_init):
                             ins_val = ins_val + "'" + format_sql(str(rs_source[i][j])) + "',"
                     v_sql = v_sql + '(' + ins_val[0:-1] + '),'
                 batch_sql = ins_sql_header + v_sql[0:-1]
-                # noinspection PyBroadException
-                # try:
-                #     cr_desc.execute(batch_sql)
-                #     i_counter = i_counter + len(rs_source)
-                # except:
-                #     print(traceback.format_exc())
-                #     print(batch_sql)
-                #     sys.exit(0)
 
                 config['run_sql'] = batch_sql
                 cr_desc.execute(batch_sql)

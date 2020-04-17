@@ -558,8 +558,12 @@ def sync_sqlserver_ddl(config,debug):
                   print("Table:{0} creating success!".format(get_mapping_tname(full_tab_name)))
                   cr_desc.execute('alter table {0} add primary key ({1})'.format(get_mapping_tname(full_tab_name),get_sync_table_pk_names(config, full_tab_name)))
                   print("Table:{0} add primary key {1} success!".format(get_mapping_tname(full_tab_name),get_sync_table_pk_names(config, full_tab_name)))
-                  cr_desc.execute('alter table {0} add {1} int'.format(get_mapping_tname(full_tab_name),config['sync_col_name']))
-                  print("Table:{0} add column {1} success!".format(get_mapping_tname(full_tab_name),config['sync_col_name']))
+
+                  #add new columns.
+                  for ac in config['sync_col_name'].split(','):
+                      print('alter table {0} add {1} varchar(50)'.format(get_mapping_tname(full_tab_name),ac))
+                      cr_desc.execute('alter table {0} add {1} varchar(50)'.format(get_mapping_tname(full_tab_name),ac))
+                      print("Table:{0} add column {1} success!".format(get_mapping_tname(full_tab_name),config['sync_col_name']))
                   db_desc.commit()
                   #create mysql table comments
                   if check_sync_sqlserver_tab_comments(config,tab)>0:
@@ -914,43 +918,46 @@ def sync_sqlserver_init(config,debug):
             ins_sql_header   = get_tab_header(config,tab)
             v_tab_cols       = get_tab_columns(config,tab)
             v_pk_name        = get_sync_table_pk_names(config,tab)
+            v_pk_cols        = get_sync_table_pk_vals(config, tab)
             n_batch_size     = int(config['batch_size'])
             db_source        = config['db_sqlserver']
             cr_source        = db_source.cursor()
             db_desc          = config['db_mysql']
             cr_desc          = db_desc.cursor()
-            v_sql            = "select * from {0} with(nolock)".format(tab)
+            v_sql            = "select  {0} as 'pk',{1}  from {2} with(nolock)".format(v_pk_cols,get_tab_columns(config,tab),tab)
             cr_source.execute(v_sql)
             rs_source = cr_source.fetchmany(n_batch_size)
             while rs_source:
                 batch_sql  = ""
                 v_sql      = ''
-                for i in range(len(rs_source)):
+                for r in list(rs_source):
                     rs_source_desc = cr_source.description
                     ins_val = ""
-                    for j in range(len(rs_source[i])):
+                    for j in range(1,len(r)):
                         col_type = str(rs_source_desc[j][1])
-                        if  rs_source[i][j] is None:
+                        if   r[j] is None:
                             ins_val = ins_val + "null,"
                         elif col_type == "1":  #varchar,date
-                            ins_val = ins_val + "'"+format_sql(str(rs_source[i][j])) + "',"
+                            ins_val = ins_val + "'"+ format_sql(str(r[j])) + "',"
                         elif col_type == "5":  #int,decimal
-                            ins_val = ins_val + "'" + str(rs_source[i][j])+ "',"
+                            ins_val = ins_val + "'" + str(r[j])+ "',"
                         elif col_type == "4":  #datetime
-                            ins_val = ins_val + "'" + str(rs_source[i][j]).split('.')[0] + "',"
+                            ins_val = ins_val + "'" + str(r[j]).split('.')[0] + "',"
                         elif col_type == "3":  # bit
-                            if str(rs_source[i][j]) == "True":  # bit
+                            if  str(r[j]) == "True":  # bit
                                 ins_val = ins_val + "'" + "1" + "',"
-                            elif str(rs_source[i][j]) == "False":  # bit
+                            elif str(r[j]) == "False":  # bit
                                 ins_val = ins_val + "'" + "0" + "',"
                             else:  # bigint ,int
-                                ins_val = ins_val + "'" + str(rs_source[i][j]) + "',"
+                                ins_val = ins_val + "'" + str(r[j]) + "',"
                         elif col_type == "2":  # timestamp
                             ins_val = ins_val + "null,"
                         else:
-                            ins_val = ins_val + "'" + str(rs_source[i][j]) + "',"
-                    v_sql = v_sql +'('+ins_val+config['sync_col_val']+'),'
+                            ins_val = ins_val + "'" +str(r[j]) + "',"
+                    v_sql = v_sql +'('+ins_val+config['sync_col_val'].replace('$PK$',r[0].replace('^^^','_'))+'),'
+
                 batch_sql = ins_sql_header + v_sql[0:-1]
+
                 #noinspection PyBroadException
                 try:
                   cr_desc.execute(batch_sql)
@@ -1120,7 +1127,7 @@ def sync_sqlserver_data_pk(config,ftab,config_init):
                                             format('`'+str(rs_source_desc[j][0])+'`', format_sql(str(r[j])))
 
                     v_where   = get_sync_where(v_pk_names_mysql, r[0])
-                    v_sql_tmp = v_sql_tmp + config['sync_col_val']
+                    v_sql_tmp = v_sql_tmp + config['sync_col_val'].replace('$PK$',r[0].replace('^^^','_'))
                     v_sql_ins = ins_sql_header  + '(' + v_sql_tmp+ ')'
                     v_sql_upd = 'update {0} set {1} where {2}'.format(get_mapping_tname(tab),v_sql_upd_tmp[0:-1],v_where)
 
@@ -1141,15 +1148,8 @@ def sync_sqlserver_data_pk(config,ftab,config_init):
                            print('v_sql_ins=', v_sql_ins)
                            sys.exit(0)
 
-                print("\rTable:{0},Total :{1},Process ins:{2},upd:{3},Complete:{4}%,elapsed time:{5}s"
-                      .format(get_mapping_tname(tab),
-                              n_tab_total_rows,
-                              i_counter,
-                              i_counter_upd,
-                              round((i_counter+i_counter_upd) / n_tab_total_rows * 100, 2),
-                              str(get_seconds(start_time))),end='')
                 if n_tab_total_rows == 0:
-                    print( "Table:{0},Total :{1},Process ins:{2},upd:{3},Complete:{4}%,elapsed time:{5}s"
+                    print("\rTable:{0},Total :{1},Process ins:{2},upd:{3},Complete:{4}%,elapsed time:{5}s"
                               .format(tab,
                                       n_tab_total_rows,
                                       i_counter,
@@ -1157,9 +1157,9 @@ def sync_sqlserver_data_pk(config,ftab,config_init):
                                       round((i_counter+i_counter_upd) / 1 * 100, 2),
                                       str(get_seconds(start_time))), False)
                 else:
-                    print( "Table:{0},Total :{1},Process ins:{2},upd:{3},Complete:{4}%,elapsed time:{5}s"
+                    print( "\rTable:{0},Total :{1},Process ins:{2},upd:{3},Complete:{4}%,elapsed time:{5}s"
                               .format(tab,
-                                      n_tab_total_rows,
+                                       n_tab_total_rows,
                                       i_counter,
                                       i_counter_upd,
                                       round((i_counter+i_counter_upd) / n_tab_total_rows * 100, 2),
@@ -1168,7 +1168,6 @@ def sync_sqlserver_data_pk(config,ftab,config_init):
         print('')
         db_desc.commit()
         if config['run_mode'] == 'remote':
-            #write write_sync_log_detail
             config['sync_duration'] = str(get_seconds(start_time))
             config['sync_table_inteface'] = tab
             config['sync_amount'] = str(n_rows)
@@ -1180,7 +1179,8 @@ def sync_sqlserver_data(config,config_init):
     for v in config['sync_table'].split(","):
         tab = v.split(':')[0]
         sync_sqlserver_data_pk(config, v,config_init)
-        amount = amount + int(config['sync_amount'])
+        if config['run_mode'] == 'remote':
+           amount = amount + int(config['sync_amount'])
 
     if config['run_mode'] == 'remote':
        #write write_sync_log_detail
@@ -1293,9 +1293,6 @@ def sync(config,debug,workdir):
     while True:
       #sync increment data
       sync_sqlserver_data(config,config_init)
-
-      # clearing desc table
-      cleaning_table(config)
 
       #exit program
       sys.exit(0)
