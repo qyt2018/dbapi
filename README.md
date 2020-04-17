@@ -36,6 +36,57 @@
 | /stop_script_remote_sync  | 停止远程同步任务  |
 
        
+  1.3 DataX同步接口：
+
+------------
+
+|  接口	 |描述   |
+| :------------ | :------------ |
+| /read_datax_config_sync   | 获取dataX数据同步任务参数 |
+| /read_datax_templete      | 获取dataX数据同步模板信息  |
+| /push_datax_remote_sync   | 将本地dataX同步任务及最新同步客户端脚本推送至远程同步服务器  |
+| /write_datax_sync_log     | 写dataX同步任务明细信息   |
+| /run_datax_remote_sync    | 运行远程同步任务   |
+| /stop_datax_remote_sync   | 停止远程同步任务  |
+
+       
+  1.4 数据传输接口：
+
+------------
+
+|  接口	 |描述   |
+| :------------ | :------------ |
+| /read_config_transfer   | 获取数据传输参数 |
+| /push_script_remote_transfer   | 将本地传输任务及最新传输客户端脚本推送至远程传输服务器  |
+| /write_transfer_log     | 写传输日志   |
+| /run_script_remote_transfer| 运行远程传输服务器上的传输任务   |
+| /stop_script_remote_transfer   | 停止远程传输服务器上的传输任务  |
+
+       
+  1.5 数据归档接口：
+
+------------
+
+|  接口	 |描述   |
+| :------------ | :------------ |
+| /read_config_archive   | 获取数据归档任务参数 |
+| /push_script_remote_archive   | 将本地归档任务及最新同步客户端脚本推送至远程归档服务器  |
+| /write_archive_log     | 写数据归档任务日志   |
+| /run_script_remote_archive| 运行远程归档服务器上的归档任务   |
+| /stop_script_remote_archive   | 停止远程归档服务器上的归档任务  |
+
+
+  1.6 监控接口：
+
+------------
+
+|  接口	 |描述   |
+| :------------ | :------------ |
+| /read_config_monitor   | 获取数据监控任务参数 |
+| /push_script_remote_archive   | 将本地监控任务及最新同步客户端脚本推送至远程同步服务器  |
+| /write_monitor_log     | 写数据监控任务日志   |
+
+
 二、安装部署  
 
 2.1 安装依赖
