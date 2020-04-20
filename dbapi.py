@@ -93,6 +93,15 @@ def db_config2():
     config['db_mysql']   =  get_db_mysql2(config)
     return config
 
+def db_config_info():
+    config={}
+    config['db_ip']      = '10.2.39.18'
+    config['db_port']    = '3306'
+    config['db_user']    = 'puppet'
+    config['db_pass']    = '7D86F7A83E38AD4DFB15C0AFEFF7D310'
+    config['db_service'] = 'puppet'
+    return config
+
 def update_backup_status(p_tag):
     config = db_config()
     db     = config['db_mysql']
@@ -409,10 +418,12 @@ def get_db_monitor_config(p_tag):
                         b.server_pass,
                         b.server_desc,   
                         b.market_id,
-                        c.ip AS db_ip,
-                        c.port AS db_port,
-                        c.user AS db_user,
-                        c.password  AS db_pass            
+                        c.ip        AS db_ip,
+                        c.port      AS db_port,
+                        c.service   AS db_service,
+                        c.user      AS db_user,
+                        c.password  AS db_pass,
+                        c.db_type   AS db_type              
                 FROM t_monitor_task a 
                    JOIN t_server b ON a.server_id=b.id 
                    LEFT JOIN t_db_source c  ON  a.db_id=c.id  
@@ -736,27 +747,28 @@ def save_archive_log(config):
     cr.close()
     return result
 
-def  save_monitor_log(config):
+def save_monitor_log(config):
     result = {}
     result['code'] = 200
     result['msg'] = 'success'
     db = db_config()['db_mysql']
     cr = db.cursor()
-    v_sql='''insert into t_monitor_task_server_log
-              (task_tag,server_id,cpu_usage,mem_usage,disk_usage,disk_read,disk_write,net_in,net_out,market_id,create_date) 
-                values('{0}','{1}','{2}','{3}','{4}','{5}','{6}','{7}','{8}','{9}',now())
-          '''.format(config['task_tag'],config['server_id'],
-                     config['cpu_usage'],config['mem_usage'],config['disk_usage'],
-                     config['disk_read'],config['disk_write'],config['net_in'],
-                     config['net_out'],config['market_id'])
-
-    print('save_monitor_log=',v_sql)
-    cr.execute(v_sql)
+    v_sql = ''
     if config['db_id']!='':
         v_sql = '''insert into t_monitor_task_db_log (task_tag,server_id,db_id,total_connect,active_connect,db_available,create_date) 
                       values('{0}','{1}','{2}','{3}','{4}','{5}',now())
-                '''.format(config['task_tag'], config['server_id'],config['db_id'],config['total_connect'],config['active_connect'],config['db_available'])
-        cr.execute(v_sql)
+                '''.format(config['task_tag'], config['server_id'],config['db_id'],
+                           config['total_connect'],config['active_connect'],config['db_available'])
+    else:
+        v_sql = '''insert into t_monitor_task_server_log
+                      (task_tag,server_id,cpu_total_usage,cpu_core_usage,mem_usage,disk_usage,disk_read,disk_write,net_in,net_out,market_id,create_date) 
+                        values('{0}','{1}','{2}','{3}','{4}','{5}','{6}','{7}','{8}','{9}','{10}',now())
+                '''.format(config['task_tag'], config['server_id'],
+                           config['cpu_total_usage'], config['cpu_core_usage'], config['mem_usage'],
+                           config['disk_usage'], config['disk_read'], config['disk_write'],
+                           config['net_in'], config['net_out'], config['market_id'])
+    print('save_monitor_log=', v_sql)
+    cr.execute(v_sql)
     db.commit()
     cr.close()
     return result
@@ -2122,6 +2134,21 @@ class read_config_monitor(tornado.web.RequestHandler):
             self.write(v_json)
 
 
+class read_config_db(tornado.web.RequestHandler):
+    def post(self):
+        try:
+            self.set_header("Content-Type", "application/json; charset=UTF-8")
+            result = {}
+            result['code'] = 200
+            result['msg'] = db_config_info()
+            v_json = json.dumps(result)
+            self.write(v_json)
+        except Exception as e:
+            result['code'] = -1
+            result['msg'] = str(e)
+            self.write(v_json)
+
+
 class read_datax_config_sync(tornado.web.RequestHandler):
     def post(self):
         try:
@@ -2685,6 +2712,7 @@ class Application(tornado.web.Application):
 
             # 监控API接口
             (r"/read_config_monitor", read_config_monitor),
+            (r"/read_config_db", read_config_db),
             (r"/push_script_remote_monitor", push_script_remote_monitor),
             (r"/write_monitor_log", write_monitor_log),
         ]

@@ -104,6 +104,10 @@ def get_ds_mysql(ip,port,service ,user,password):
     conn = pymysql.connect(host=ip, port=int(port), user=user, passwd=password, db=service, charset='utf8')
     return conn
 
+def get_ds_mysql_dict(ip,port,service ,user,password):
+    conn = pymysql.connect(host=ip, port=int(port), user=user, passwd=password, db=service, charset='utf8', cursorclass = pymysql.cursors.DictCursor)
+    return conn
+
 def get_ds_mysql_test(ip,port,service ,user,password):
     conn = pymysql.connect(host=ip, port=int(port), user=user, passwd=password, db=service, charset='utf8',read_timeout=3)
     return conn
@@ -132,7 +136,7 @@ def get_config_from_db(tag):
         'tag': tag
     }
     print('values=', values)
-    url = 'http://$$API_SERVER$$/read_config_monitor'
+    url = 'http://$$API_SERVER$$/read_config_db'
     context = ssl._create_unverified_context()
     data = urllib.parse.urlencode(values).encode(encoding='UTF-8')
     print('data=', data)
@@ -144,15 +148,15 @@ def get_config_from_db(tag):
         print('接口调用成功!')
         try:
             print(res['msg'])
-            config = res['msg']
-            if config['db_ip'] is not None:
-               db_ip = config['db_ip']
-               db_port = config['db_port']
-               db_service = ''
-               db_user = config['db_user']
-               db_pass = aes_decrypt(config['db_pass'], db_user)
-               config['db_string'] = db_ip + ':' + db_port + '/' + db_service
-               config['db_mysql']  = get_ds_mysql(db_ip, db_port, db_service, db_user, db_pass)
+            config     = res['msg']
+            db_ip      = config['db_ip']
+            db_port    = config['db_port']
+            db_service = config['db_service']
+            db_user    = config['db_user']
+            db_pass    = aes_decrypt(config['db_pass'], db_user)
+            config['db_string'] = db_ip + ':' + db_port + '/' + db_service
+            config['db_mysql']  = get_ds_mysql(db_ip, db_port, db_service, db_user, db_pass)
+            config['db_mysql_dict'] = get_ds_mysql_dict(db_ip, db_port, db_service, db_user, db_pass)
             return config
         except Exception as e:
             v_error = '从接口配置获取数据库连接对象时出现异常:{0}'.format(traceback.format_exc())
@@ -175,173 +179,31 @@ def get_config_from_db(tag):
 
 def init(config):
     config = get_config_from_db(config)
-
-    #init disk I/O info
-    if not os.path.isfile(config['script_path']+'/disk_io.ini'):
-       write_disk_init_info(config)
-
-    #init net i/o info
-    if not os.path.isfile(config['script_path'] + '/net_io.ini'):
-       write_net_init_info(config)
-
     print_dict(config)
     return config
 
-def get_disk_usage():
-    partitions = {}
-    for partition in psutil.disk_partitions(all=True):
-        if partition.mountpoint in('/','/home/hopson/apps','/home','/home/hopson/data'):
-           partitions[partition.mountpoint] = psutil.disk_usage(partition.mountpoint).percent
-    return partitions
-
-def write_disk_init_info(config):
-    d_disk_io  ={}
-    d_disk_io['read_count']  = psutil.disk_io_counters().read_count
-    d_disk_io['write_count'] = psutil.disk_io_counters().write_count
-    d_disk_io['read_bytes']  = psutil.disk_io_counters().read_bytes
-    d_disk_io['write_bytes'] = psutil.disk_io_counters().write_bytes
-    d_disk_io['read_time']   = int(time.time())
-    d_disk_io['write_time']  = int(time.time())
-    with open(config['script_path']+'/disk_io.ini', 'w') as f:
-        f.write(json.dumps(d_disk_io, ensure_ascii=False, indent=4, separators=(',', ':')))
-
-def get_disk_io_info(config):
-    d_disk_io  = {}
-    disk_stats = {}
-    with open(config['script_path'] + '/disk_io.ini', 'r') as f:
-        prev_disk_io = f.read()
-    d_prev_disk_io=json.loads(prev_disk_io)
-    d_disk_io['read_bytes']   = psutil.disk_io_counters().read_bytes
-    d_disk_io['write_bytes']  = psutil.disk_io_counters().write_bytes
-    d_disk_io['read_time']    = int(time.time())
-    d_disk_io['write_time']   = int(time.time())
-    disk_stats['read_bytes']  = int((d_disk_io['read_bytes']  * 1.0 - d_prev_disk_io['read_bytes']) / (d_disk_io['read_time'] - d_prev_disk_io['read_time']))
-    disk_stats['write_bytes'] = int((d_disk_io['write_bytes'] * 1.0 - d_prev_disk_io['write_bytes']) / (d_disk_io['write_time']- d_prev_disk_io['write_time']))
-    return disk_stats
-
-def write_net_init_info(config):
-    d_net_io = {}
-    d_net_io['sent_bytes'] = psutil.net_io_counters().bytes_sent
-    d_net_io['recv_bytes'] = psutil.net_io_counters().bytes_recv
-    d_net_io['sent_time']  = int(time.time())
-    d_net_io['recv_time']  = int(time.time())
-    with open(config['script_path'] + '/net_io.ini', 'w') as f:
-        f.write(json.dumps(d_net_io, ensure_ascii=False, indent=4, separators=(',', ':')))
-
-def get_net_io_info(config):
-    d_net_io  = {}
-    net_stats = {}
-    with open(config['script_path'] + '/net_io.ini', 'r') as f:
-        prev_net_io = f.read()
-    d_prev_disk_io=json.loads(prev_net_io)
-    d_net_io['sent_bytes']   = psutil.net_io_counters().bytes_sent
-    d_net_io['recv_bytes']   = psutil.net_io_counters().bytes_recv
-    d_net_io['sent_time']    = int(time.time())
-    d_net_io['recv_time']    = int(time.time())
-    net_stats['sent_bytes']  = int((d_net_io['sent_bytes'] - d_prev_disk_io['sent_bytes']) / (d_net_io['sent_time'] - d_prev_disk_io['sent_time']))
-    net_stats['recv_bytes']  = int((d_net_io['recv_bytes'] - d_prev_disk_io['recv_bytes']) / (d_net_io['recv_time']- d_prev_disk_io['recv_time']))
-    return net_stats
-
-def get_mysql_total_connect(config):
-    db = config['db_mysql']
+def get_monitor_indexes(config):
+    db = config['db_mysql_dict']
     cr = db.cursor()
-    cr.execute("SELECT count(0) FROM information_schema.processlist")
-    rs=cr.fetchone()
+    cr.execute("SELECT * FROM t_monitor_index where id=1 and status='1' order by id ")
+    rs = cr.fetchall()
     cr.close()
-    return rs[0]
+    return rs
 
-def get_mysql_active_connect(config):
-    db = config['db_mysql']
+def get_gather_tasks(config):
+    db = config['db_mysql_dict']
     cr = db.cursor()
-    cr.execute("SELECT count(0) FROM information_schema.processlist where command <>'Sleep'")
-    rs=cr.fetchone()
+    cr.execute("SELECT * FROM `t_monitor_task` WHERE STATUS='1' AND task_tag LIKE 'gather%' ORDER BY id")
+    rs = cr.fetchall()
     cr.close()
-    return rs[0]
+    return rs
 
-def get_mysql_available(config):
-    try:
-        db_ip      = config['db_ip']
-        db_port    = config['db_port']
-        db_service = ''
-        db_user    = config['db_user']
-        db_pass    = aes_decrypt(config['db_pass'], db_user)
-        db= get_ds_mysql_test(db_ip, db_port, db_service, db_user, db_pass)
-        cr = db.cursor()
-        cr.execute("SELECT 1")
-        cr.close()
-        return 100
-    except Exception as e:
-        traceback.print_stack()
-        return 0
+def monitor(config):
+   for idx in get_monitor_indexes(config):
+       print(idx)
 
-def get_mysql_service(config):
-    pass
-
-def gather(config):
-    d_item = {}
-    for idx in config['templete_indexes'].split(','):
-        if idx == 'cpu_usage':
-           d_item['cpu_usage']  = psutil.cpu_percent(interval=1, percpu=True)
-        elif idx == 'mem_usage':
-           d_item['mem_usage']  = psutil.virtual_memory().percent
-        elif idx == 'disk_usage':
-           d_item['disk_usage'] = json.dumps(get_disk_usage())
-        elif idx == 'disk_read':
-           d_item['disk_read']  = get_disk_io_info(config)['read_bytes']
-        elif idx == 'disk_write':
-           d_item['disk_write'] = get_disk_io_info(config)['write_bytes']
-        elif idx == 'net_out':
-           d_item['net_out']    = get_net_io_info(config)['sent_bytes']
-        elif idx == 'net_in':
-           d_item['net_in']     = get_net_io_info(config)['recv_bytes']
-        elif idx == 'mysql_total_connect':
-           d_item['total_connect'] = get_mysql_total_connect(config)
-        elif idx == 'mysql_active_connect':
-           d_item['active_connect'] = get_mysql_active_connect(config)
-        elif idx == 'mysql_available':
-           d_item['db_available'] =  get_mysql_available(config)
-        else:
-           pass
-
-    d_item['server_id'] = config['server_id']
-    d_item['db_id']     = config['db_id']
-    d_item['task_tag']  = config['task_tag']
-    d_item['market_id'] = config['market_id']
-    print('gather=', d_item)
-    write_monitor_log(d_item)
-
-
-def write_monitor_log(item):
-    v_tag = {
-        'task_tag'            : item.get('task_tag'),
-        'server_id'           : item.get('server_id'),
-        'db_id'               : item.get('db_id'),
-        'cpu_usage'           : item.get('cpu_usage'),
-        'mem_usage'           : item.get('mem_usage'),
-        'disk_usage'          : item.get('disk_usage'),
-        'disk_read'           : item.get('disk_read'),
-        'disk_write'          : item.get('disk_write'),
-        'net_out'             : item.get('net_out'),
-        'net_in'              : item.get('net_in'),
-        'total_connect'       : item.get('total_connect'),
-        'active_connect'      : item.get('active_connect'),
-        'db_available'        : item.get('db_available'),
-        'market_id'           : item.get('market_id')
-    }
-    print('write_monitor_log=',v_tag)
-    v_msg = json.dumps(v_tag)
-    values = {
-        'tag': v_msg
-    }
-    url = 'http://$$API_SERVER$$/write_monitor_log'
-    context = ssl._create_unverified_context()
-    data = urllib.parse.urlencode(values).encode(encoding='UTF-8')
-    req = urllib.request.Request(url, data=data)
-    res = urllib.request.urlopen(req, context=context)
-    res = json.loads(res.read())
-    print(res, res['code'])
-    if res['code'] != 200:
-        print('Interface write_monitor_log call failed!')
+   for idx in get_gather_tasks(config):
+        print(idx)
 
 def main():
     config = ""
@@ -355,7 +217,7 @@ def main():
     config=init(config)
 
     #数据同步
-    gather(config)
+    monitor(config)
 
 if __name__ == "__main__":
      main()
